@@ -1,0 +1,41 @@
+import looper as loop
+from flask import Flask, request, json, jsonify, redirect
+
+app = Flask(__name__)
+app.config.from_object(__name__)
+app.url_map.strict_slashes = False
+
+def simple_get_set(request, key, getter, setter):
+    if request.method == 'POST':
+        setter(request.get_json()[key])
+    return jsonify({key: getter()})
+
+@app.route('/')
+def hello_world():
+    return redirect('/static/index.html')
+
+@app.route('/modes', methods=['GET'])
+def modes():
+    return json.dumps(loop.get_modes().keys())
+
+@app.route('/modes/current', methods=['GET', 'POST'])
+def current_mode():
+    return simple_get_set(request, 'mode', loop.get_current_mode, loop.set_mode)
+
+@app.route('/brightness', methods=['GET', 'POST'])
+def brightness():
+    return simple_get_set(request, 'brightness', loop.get_brightness, loop.set_brightness)
+
+@app.route('/delay', methods=['GET', 'POST'])
+def delay():
+    return simple_get_set(request, 'delay', loop.get_delay, loop.set_delay)
+
+@app.route('/opts', methods=['GET', 'POST'])
+def opts():
+    if request.method == 'POST':
+        loop.set_opts(request.get_json())
+    return jsonify({'opts': loop.get_opts()})
+
+def start_server():
+    app.run(host='0.0.0.0', port=5000, debug=False)
+    #app.run(host='0.0.0.0', port=5000, debug=True)
