@@ -33,9 +33,14 @@ def delay():
 @app.route('/opts', methods=['GET', 'POST'])
 def opts():
     if request.method == 'POST':
-        loop.set_opts(request.get_json())
+        opts = request.get_json()
+        for key in opts:
+            if opts[key]['type'] == 'bool':
+                opts[key]['val'] = True if opts[key]['val'] == 'true' else False
+        loop.set_opts(opts)
+        print(opts)
     return jsonify({'opts': loop.get_opts()})
 
 def start_server():
-    app.run(host='0.0.0.0', port=5000, debug=False)
-    #app.run(host='0.0.0.0', port=5000, debug=True)
+    #app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

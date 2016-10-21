@@ -108,13 +108,19 @@ class RainbowCycle(Mode):
         send()
         self.colors.insert(0, self.colors.pop())
 
+def opts_get_boolean(val):
+    return {
+        'val' : val,
+        'type': 'bool'
+    }
+
 class NightRider(Mode):
     def __init__(self):
         Mode.__init__(self, self.__class__.__name__, {
             'color': colors.YELLOW,
             'fill_color': colors.BLACK,
             'tail_color': colors.RED,
-            'fade': True
+            'fade': opts_get_boolean(True)
         })
         self.counter = 0
         self.direction = 1

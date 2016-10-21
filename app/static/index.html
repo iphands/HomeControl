@@ -56,7 +56,7 @@
 			<h2>Options</h2>
 			<div ng-repeat="(k, v) in opts">
 			  <label>{{k}}
-				<input type="text" value="{{v}}" ng-model="opts[k]" ng-change="changeOpt(k)">
+				<input type="text" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
 			  </label>
 			</div>
 		  </div>
