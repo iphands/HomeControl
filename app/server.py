@@ -38,7 +38,6 @@ def opts():
             if opts[key]['type'] == 'bool':
                 opts[key]['val'] = True if opts[key]['val'] == 'true' else False
         loop.set_opts(opts)
-        print(opts)
     return jsonify({'opts': loop.get_opts()})
 
 def start_server():

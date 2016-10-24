@@ -35,13 +35,9 @@ def get_modes():
 def get_opts():
     return mode.get_opts()
 
-def set_opts(d):
+def set_opts(input):
     global mode
-    orig = get_opts()
-    for key in d:
-        if key in orig:
-            orig[key] = d[key] if d[key] else 0
-    mode.set_opts(orig)
+    mode.set_opts(input)
 
 def get_delay():
     return DELAY

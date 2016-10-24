@@ -76,7 +76,9 @@
         $scope.changeOpt = function (k, v) {
             var obj = {};
             obj[k] = $scope.opts[k];
-            new Opts(obj).$save();
+            new Opts(obj).$save(function (res) {
+                //$scope.opts = res.opts;
+            });
         };
 
         $scope.$on(priv.events.modeChanged, $scope.loadData);

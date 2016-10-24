@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import socket, math, colorsys
 import colors as colors
+import opts as options
 from dotmap import DotMap
 from itertools import cycle
 from time import sleep
@@ -92,8 +93,13 @@ class Mode():
         modes[name] = self
     def get_opts(self):
         return self.opts.toDict()
-    def set_opts(self, opts):
-        self.opts = DotMap(opts)
+    def set_opts(self, newopts):
+        orig = self.get_opts()
+        for key in newopts:
+            if key in orig:
+                if newopts[key]['type'] == "color":
+                    orig[key] = options.set_color(newopts[key])
+        self.opts = DotMap(orig)
 
 class RainbowCycle(Mode):
     def __init__(self):
@@ -108,33 +114,27 @@ class RainbowCycle(Mode):
         send()
         self.colors.insert(0, self.colors.pop())
 
-def opts_get_boolean(val):
-    return {
-        'val' : val,
-        'type': 'bool'
-    }
-
 class NightRider(Mode):
     def __init__(self):
         Mode.__init__(self, self.__class__.__name__, {
-            'color': colors.YELLOW,
-            'fill_color': colors.BLACK,
-            'tail_color': colors.RED,
-            'fade': opts_get_boolean(True)
+            'color':      options.create_color(colors.YELLOW),
+            'fill_color': options.create_color(colors.BLACK),
+            'tail_color': options.create_color(colors.RED),
+            'fade':       options.create_bool(True)
         })
         self.counter = 0
         self.direction = 1
     def update(self):
-        if not self.opts.fade:
+        if not self.opts.fade.val:
             for x in range(0, NUM_LEDS):
-                set_led_arr(x, fill_color)
+                set_led_arr(x, self.opts.fill_color.val)
         for x in range(0, NUM_LEDS):
             if self.counter == x:
-                set_led_arr(x, self.opts.color)
-                if self.opts.tail_color:
+                set_led_arr(x, self.opts.color.val)
+                if self.opts.tail_color.val:
                     if self.counter != 0 and self.counter != (NUM_LEDS - 1):
-                        set_led_arr((x - self.direction), self.opts.tail_color)
-            elif self.opts.fade:
+                        set_led_arr((x - self.direction), self.opts.tail_color.val)
+            elif self.opts.fade.val:
                 set_led_arr(x, vol(get_led(x), 0.60))
         self.counter += self.direction
         if self.counter >= NUM_LEDS:
@@ -219,9 +219,9 @@ class Breathe(Mode):
 
 class Solid(Mode):
     def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, { 'r': 255, 'g': 0, 'b': 255, })
+        Mode.__init__(self, self.__class__.__name__, { 'color': options.create_color(colors.YELLOW) })
     def update(self):
-        solid([self.opts.r, self.opts.g, self.opts.b])
+        solid(self.opts.color.val)
     def load_cb(self, d):
         d['set_delay'](0.250)
 
