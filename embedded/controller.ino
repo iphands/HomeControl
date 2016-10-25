@@ -1,6 +1,7 @@
 #include <FastLED.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
+#include "secret.h"
 
 #define TYPE 0
 #define SEQ 1
@@ -9,19 +10,19 @@
 #define PROTOCOL_SKIP 3
 
 #define NUM_LEDS 180
-#define LED_DATA_PIN 13
+#define LED_DATA_PIN 14
 
 // for fan control
 #define LIGHT_PIN   15
-#define FAN_ON_PIN  16
-#define FAN_OFF_PIN 17
+#define FAN_ON_PIN  5
+#define FAN_OFF_PIN 4
 
 // message types
 #define LED_STRIP 1
 #define FAN 99
 
-const char* ssid     = "OpenWrt";
-const char* password = PASSWORD;
+const char* ssid     = SSID;
+const char* password = PASS;
 const unsigned int localUdpPort = 4210;
 const unsigned short int offset = 2;
 
