@@ -1,4 +1,5 @@
 import looper as loop
+import fan_ctrl as fan
 from flask import Flask, request, json, jsonify, redirect
 
 app = Flask(__name__)
@@ -13,6 +14,13 @@ def simple_get_set(request, key, getter, setter):
 @app.route('/')
 def hello_world():
     return redirect('/static/index.html')
+
+@app.route('/fanbuttons/<string:btn_id>')
+def fan_buttons(btn_id):
+    print('fdsafsa')
+    if fan.send_op(btn_id):
+        return jsonify({'msg': 'success'})
+    return jsonify({'msg': 'error'}, 400)
 
 @app.route('/modes', methods=['GET'])
 def modes():

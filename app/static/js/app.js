@@ -14,6 +14,10 @@
         $resourceProvider.defaults.stripTrailingSlashes = false;
     }]);
 
+    app.controller('FanCtrl', function FanController($scope, Fan) {
+        $scope.press = function (op) { Fan.get({op: op}); };
+    });
+
     app.controller('ModeCtrl', function ModeController($scope, Mode, $rootScope) {
         $scope.setMode = function () {
             new Mode({mode: $scope.mode}).$save({current: 'current'}, function () {
@@ -85,6 +89,9 @@
         $scope.loadData();
     });
 
+    app.factory('Fan', function ($resource) {
+        return $resource('/fan/:op', { op: '@op' }, {});
+    });
 
     app.factory('Mode', function ($resource) {
         return $resource('/modes/:current', { current: '@current' }, {});

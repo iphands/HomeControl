@@ -12,7 +12,9 @@
 #define LED_DATA_PIN 13
 
 // for fan control
-#define LIGHT_PIN 15
+#define LIGHT_PIN   15
+#define FAN_ON_PIN  16
+#define FAN_OFF_PIN 17
 
 // message types
 #define LED_STRIP 1
@@ -80,11 +82,27 @@ int skip() {
    return 0;
 }
 
-void do_fan () {
-  Serial.println("pressing fan light button\n");
-  digitalWrite(LIGHT_PIN, HIGH);
+void remote_press (int pin) {
+  digitalWrite(pin, HIGH);
   delay(500);
-  digitalWrite(LIGHT_PIN, LOW);
+  digitalWrite(pin, LOW);
+}
+
+void do_fan () {
+  switch (incomingPacket[1]) {
+  case 97:
+	Serial.println("pressing fan on button\n");
+	remote_press(FAN_ON_PIN);
+	break;
+  case 98:
+	Serial.println("pressing fan off button\n");
+	remote_press(FAN_OFF_PIN);
+	break;
+  case 99:
+	Serial.println("pressing fan light button\n");
+	remote_press(LIGHT_PIN);
+	break;
+  }
 }
 
 void do_led () {

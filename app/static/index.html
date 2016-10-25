@@ -26,6 +26,21 @@
   </head>
 
   <body>
+	<h1>Fan Control</h1>
+	<div class="container bs-docs-container" ng-controller="FanCtrl">
+	  <div class="row">
+		<div class="col-xs-4">
+		  <button class="btn" ng-click="press('c')">Light</button>
+		</div>
+		<div class="col-xs-4">
+		  <button class="btn" ng-click="press('a')">Fan On</button>
+		</div>
+		<div class="col-xs-4">
+		  <button class="btn" ng-click="press('b')">Fan Off</button>
+		</div>
+	  </div>
+	</div>
+
 	<h1>LED Control</h1>
 	<div class="container bs-docs-container">
 	  <div class="row">
