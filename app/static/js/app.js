@@ -1,4 +1,3 @@
-
 /*global angular, window*/
 (function () {
     'use strict';
@@ -90,7 +89,7 @@
     });
 
     app.factory('Fan', function ($resource) {
-        return $resource('/fan/:op', { op: '@op' }, {});
+        return $resource('/fanbuttons/:op', { op: '@op' }, {});
     });
 
     app.factory('Mode', function ($resource) {
