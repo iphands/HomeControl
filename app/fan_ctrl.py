@@ -1,6 +1,6 @@
 import socket
 
-UDP_IP = "10.226.227.18"
+UDP_IP = "10.226.227.19"
 UDP_PORT = 4210
 OPS = ["a", "b", "c"]
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

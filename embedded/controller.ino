@@ -9,13 +9,17 @@
 
 #define PROTOCOL_SKIP 3
 
-#define NUM_LEDS 180
+#define NUM_LEDS 80
 #define LED_DATA_PIN 14
 
 // for fan control
 #define LIGHT_PIN   15
 #define FAN_ON_PIN  5
 #define FAN_OFF_PIN 4
+
+// debug
+#define DEBUG 0
+#define BLUE_PIN 2
 
 // message types
 #define LED_STRIP 1
@@ -51,7 +55,10 @@ void setup() {
   Udp.begin(localUdpPort);
   FastLED.addLeds<WS2811, LED_DATA_PIN, BRG>(leds, NUM_LEDS);
   FastLED.setBrightness(50);
-  pinMode(LIGHT_PIN, OUTPUT);
+  pinMode(LIGHT_PIN,   OUTPUT);
+  pinMode(FAN_ON_PIN,  OUTPUT);
+  pinMode(FAN_OFF_PIN, OUTPUT);
+  pinMode(BLUE_PIN,    OUTPUT);
 }
 
 void try_connect() {
@@ -90,30 +97,39 @@ void remote_press (int pin) {
 }
 
 void do_fan () {
+  Serial.printf("sequence byte: %d %d\n", incomingPacket[0], incomingPacket[1]);
   switch (incomingPacket[1]) {
   case 97:
-	Serial.println("pressing fan on button\n");
+	Serial.println("pressing fan on button");
 	remote_press(FAN_ON_PIN);
 	break;
   case 98:
-	Serial.println("pressing fan off button\n");
+	Serial.println("pressing fan off button");
 	remote_press(FAN_OFF_PIN);
 	break;
   case 99:
-	Serial.println("pressing fan light button\n");
+	Serial.println("pressing fan light button");
 	remote_press(LIGHT_PIN);
+	break;
+  case 100:
+	Serial.println("blue pin...");
+	remote_press(BLUE_PIN);
 	break;
   }
 }
 
 void do_led () {
-  // Serial.printf("sequence byte: %d\n", incomingPacket[0]);
-  if (skip()) { return; }
 
   if (incomingPacket[TYPE] == FAN) {
 	do_fan();
 	return;
   }
+
+#if DEBUG
+  Serial.printf("sequence byte: %d\n", incomingPacket[0]);
+#endif
+
+  if (skip()) { return; }
 
   seq = incomingPacket[SEQ];
   FastLED.setBrightness(incomingPacket[BRIGHTNESS]);
@@ -122,6 +138,9 @@ void do_led () {
 	leds[i].red   = incomingPacket[(i * 3) + PROTOCOL_SKIP + 0];
 	leds[i].green = incomingPacket[(i * 3) + PROTOCOL_SKIP + 1];
 	leds[i].blue  = incomingPacket[(i * 3) + PROTOCOL_SKIP + 2];
+#if DEBUG
+	Serial.println(leds[i]);
+#endif
   }
   FastLED.show();
 }
@@ -130,4 +149,3 @@ void loop () {
   get_udp();
   try_connect();
 }
-

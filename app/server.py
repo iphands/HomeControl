@@ -17,7 +17,6 @@ def hello_world():
 
 @app.route('/fanbuttons/<string:btn_id>')
 def fan_buttons(btn_id):
-    print('fdsafsa')
     if fan.send_op(btn_id):
         return jsonify({'msg': 'success'})
     return jsonify({'msg': 'error'}, 400)
@@ -50,4 +49,4 @@ def opts():
 
 def start_server():
     app.run(host='0.0.0.0', port=5000, debug=False)
-    #app.run(host='0.0.0.0', port=5000, debug=True)
+    # app.run(host='0.0.0.0', port=5000, debug=True)
