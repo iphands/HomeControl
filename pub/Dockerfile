@@ -15,5 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./src /src
 
-
 CMD [ "python3", "./daemon.py" ]

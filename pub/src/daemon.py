@@ -8,6 +8,8 @@ import socket
 
 app = Flask(__name__)
 VALID_TOKEN = os.environ['HOME_TOKEN']
+CERT = '/ssl/home.ahands.org/fullchain.pem'
+KEY  = '/ssl/home.ahands.org/privkey.pem'
 
 def token_required(f):
     @wraps(f)
@@ -39,5 +41,4 @@ def cosmo_status():
         s.close()
     return jsonify({ "status": "up" })
 
-app.run(host='0.0.0.0')
-# app.run(ssl_context=('cert.pem', 'key.pem'))
+app.run(host='0.0.0.0', ssl_context=(CERT, KEY))
