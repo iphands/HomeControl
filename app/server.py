@@ -23,7 +23,9 @@ def fan_buttons(btn_id):
 
 @app.route('/modes', methods=['GET'])
 def modes():
-    return json.dumps(loop.get_modes().keys())
+    m = list(loop.get_modes().keys())
+    print(m)
+    return json.dumps(m)
 
 @app.route('/modes/current', methods=['GET', 'POST'])
 def current_mode():

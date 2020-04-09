@@ -7,11 +7,10 @@ from itertools import cycle
 from time import sleep
 from random import randint
 
-UDP_IP = "10.226.227.19"
-#UDP_IP = "10.226.227.210"
+UDP_IP = "192.168.10.37"
 UDP_PORT = 4210
 PROTOCOL_SKIP = 3
-NUM_LEDS = 80
+NUM_LEDS = 64
 
 modes = {}
 
