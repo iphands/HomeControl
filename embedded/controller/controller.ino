@@ -10,11 +10,11 @@
 
 #define PROTOCOL_SKIP 3
 
-#define NUM_LEDS 4
+#define NUM_LEDS 64
 #define LED_DATA_PIN 5
 
 // debug
-#define DEBUG 1
+#define DEBUG 0
 #define BLUE_PIN 2
 
 // message types
