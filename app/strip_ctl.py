@@ -16,7 +16,7 @@ NUM_LEDS = 80
 modes = {}
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-LEDS = range((NUM_LEDS * 3) + PROTOCOL_SKIP)
+LEDS = list(range((NUM_LEDS * 3) + PROTOCOL_SKIP))
 LEDS[0] = 1
 LEDS[1] = 0
 LEDS[2] = 10

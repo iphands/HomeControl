@@ -1,4 +1,5 @@
 embedded/secret.h
+app/venv
 
 *pyc
 *[#]*[#]

@@ -1,5 +1,4 @@
-
-import thread
+import _thread
 import strip_ctl as strip
 from time import sleep
 from datetime import datetime
@@ -54,4 +53,4 @@ def set_brightness(num):
     return strip.set_brightness(num)
 
 def start_loop():
-    thread.start_new_thread(loop, ())
+    _thread.start_new_thread(loop, ())
