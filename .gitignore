@@ -1,4 +1,4 @@
-embedded/secret.h
+embedded/controller/secret.h
 app/venv
 
 *pyc
