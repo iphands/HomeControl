@@ -60,7 +60,14 @@ def opts():
                 except:
                     pass
         loop.set_opts(opts)
-    return jsonify({"opts": loop.get_opts()})
+
+    opts = loop.get_opts()
+    for key, val in opts.items():
+        opt = val
+        if opt["type"] == "color":
+            rgb_hex = '#%02x%02x%02x' % tuple(opt["val"])
+            opt["val"] = rgb_hex
+    return jsonify({"opts": opts})
 
 
 def start_server():
