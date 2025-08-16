@@ -143,7 +143,7 @@ class NightRider(Mode):
             self.__class__.__name__,
             {
                 "color": options.create_color(colors.YELLOW),
-                "fill_color": options.create_color(colors.BLACK),
+                # "fill_color": options.create_color(colors.BLACK),
                 "tail_color": options.create_color(colors.RED),
                 "fade": options.create_bool(True),
             },
