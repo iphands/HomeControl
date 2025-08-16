@@ -66,7 +66,6 @@ def get_packet():
 def send(delay=0.001):
     global SEQ
     sock.sendto(bytearray(get_packet()), (UDP_IP, UDP_PORT))
-    print(f"send {SEQ}")
     sleep(delay)
 
 def simple_walk(arr, pool):

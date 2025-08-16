@@ -62,9 +62,9 @@ void setup() {
   // pinMode(FAN_OFF_PIN, OUTPUT);
   // pinMode(BLUE_PIN,    OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(WIFI_ENABLE, OUTPUT); // pinMode(3, OUTPUT);
-  digitalWrite(WIFI_ENABLE, LOW); // digitalWrite(3, LOW); // Activate RF switch control
-  // digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(WIFI_ENABLE, OUTPUT);
+  digitalWrite(WIFI_ENABLE, LOW);
+  WiFi.setSleep(false);
 }
 
 void try_connect() {
@@ -78,8 +78,6 @@ void try_connect() {
 
 void get_udp() {
   int packetSize = Udp.parsePacket();
-  // digitalWrite(LED_BUILTIN, LOW);
-  // Serial.printf(".");
   if (packetSize) {
     Serial.printf("\nReceived %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
     int len = Udp.read(incomingPacket, 255);
@@ -87,7 +85,7 @@ void get_udp() {
       incomingPacket[len] = 0;
     }
     // Serial.printf("UDP packet contents: %s\n", incomingPacket);
-    // digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(LED_BUILTIN, LOW);
     do_led();
   }
 }
@@ -137,6 +135,7 @@ void do_led () {
 }
 
 void loop () {
+  digitalWrite(LED_BUILTIN, HIGH);
   get_udp();
   try_connect();
   delay(10);
