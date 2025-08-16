@@ -2,84 +2,84 @@
 <html ng-app="ColorApp">
   <head>
     <meta charset="utf-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-	<link rel="stylesheet" href="/css/app.css">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
-	<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/angular_material/1.1.1/angular-material.min.css">
-	<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/spectrum/1.8.0/spectrum.min.css" integrity="sha256-f83N12sqX/GO43Y7vXNt9MjrHkPc4yi9Uq9cLy1wGIU=" crossorigin="anonymous" />
+		<link rel="stylesheet" href="/css/app.css">
+		<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+		<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+		<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/angular_material/1.1.1/angular-material.min.css">
+		<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/spectrum/1.8.0/spectrum.min.css" integrity="sha256-f83N12sqX/GO43Y7vXNt9MjrHkPc4yi9Uq9cLy1wGIU=" crossorigin="anonymous" />
 
 
-	<script src="//code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-	<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-	<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular.min.js"></script>
-	<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-resource.js"></script>
-	<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-animate.min.js"></script>
-	<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-aria.min.js"></script>
-	<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-messages.min.js"></script>
-	<script src="//ajax.googleapis.com/ajax/libs/angular_material/1.1.1/angular-material.min.js"></script>
-	<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/spectrum/1.8.0/spectrum.min.js" integrity="sha256-ZdnRjhC/+YiBbXTHIuJdpf7u6Jh5D2wD5y0SNRWDREQ=" crossorigin="anonymous"></script>
+		<script src="//code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+		<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-resource.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-animate.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-aria.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular-messages.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angular_material/1.1.1/angular-material.min.js"></script>
+		<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/spectrum/1.8.0/spectrum.min.js" integrity="sha256-ZdnRjhC/+YiBbXTHIuJdpf7u6Jh5D2wD5y0SNRWDREQ=" crossorigin="anonymous"></script>
 
-	<script src="/static/js/app.js"></script>
+		<script src="/static/js/app.js"></script>
   </head>
 
   <body>
-	<h1>Fan Control</h1>
-	<div class="container bs-docs-container" ng-controller="FanCtrl">
-	  <div class="row">
-		<div class="col-xs-4">
-		  <button class="btn" ng-click="press('b')">Light</button>
-		</div>
-		<div class="col-xs-4">
-		  <button class="btn" ng-click="press('a')">Fan On</button>
-		</div>
-		<div class="col-xs-4">
-		  <button class="btn" ng-click="press('c')">Fan Off</button>
-		</div>
-	  </div>
-	</div>
-
-	<h1>LED Control</h1>
-	<div class="container bs-docs-container">
-	  <div class="row">
-		<div class="col-xs-12">
-		  <div ng-controller="ModeCtrl">
-			<h2>Mode</h2>
-			<select class="form-control" ng-model="mode" ng-options="mode for mode in modes" ng-change="setMode()"></select>
-		  </div>
-		</div>
-		<div class="col-xs-12">
-		  <div ng-controller="DelayCtrl">
-			<h2>Delay</h2>
-			<md-slider-container>
-			  <md-icon md-svg-icon="device:brightness-low"></md-icon>
-			  <md-slider ng-model="slider.value" ng-change="set()" min="2" max="1000" aria-label="Delay Slider" flex="" md-discrete=""></md-slider>
-			</md-slider-container>
-		  </div>
-		</div>
-		<div class="col-xs-12">
-		  <div ng-controller="BrightnessCtrl">
-			<h2>Brightness</h2>
-			<md-slider-container>
-			  <md-icon md-svg-icon="device:brightness-low"></md-icon>
-			  <md-slider ng-model="slider.value" ng-change="set()" min="0" max="255" aria-label="Brightness Slider" flex="" md-discrete=""></md-slider>
-			</md-slider-container>
-		  </div>
-		</div>
-		<div class="col-xs-12">
-		  <div ng-controller="OptsCtrl">
-			<h2>Options</h2>
-			<div ng-repeat="(k, v) in opts">
-			  <label>{{k}}
-				<input ng-if="v.type === 'color'" class="{{v.type}}" type="color" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
-				<input class="{{v.type}}" type="text" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
-			  </label>
+		<h1>Fan Control</h1>
+		<div class="container bs-docs-container" ng-controller="FanCtrl">
+			<div class="row">
+				<div class="col-xs-4">
+					<button class="btn" ng-click="press('b')">Light</button>
+				</div>
+				<div class="col-xs-4">
+					<button class="btn" ng-click="press('a')">Fan On</button>
+				</div>
+				<div class="col-xs-4">
+					<button class="btn" ng-click="press('c')">Fan Off</button>
+				</div>
 			</div>
-		  </div>
 		</div>
-	  </div>
-	</div>
+
+		<h1>LED Control</h1>
+		<div class="container bs-docs-container">
+			<div class="row">
+				<div class="col-xs-12">
+					<div ng-controller="ModeCtrl">
+						<h2>Mode</h2>
+						<select class="form-control" ng-model="mode" ng-options="mode for mode in modes" ng-change="setMode()"></select>
+					</div>
+				</div>
+				<div class="col-xs-12">
+					<div ng-controller="DelayCtrl">
+						<h2>Delay</h2>
+						<md-slider-container>
+							<md-icon md-svg-icon="device:brightness-low"></md-icon>
+							<md-slider ng-model="slider.value" ng-change="set()" min="2" max="1000" aria-label="Delay Slider" flex="" md-discrete=""></md-slider>
+						</md-slider-container>
+					</div>
+				</div>
+				<div class="col-xs-12">
+					<div ng-controller="BrightnessCtrl">
+						<h2>Brightness</h2>
+						<md-slider-container>
+							<md-icon md-svg-icon="device:brightness-low"></md-icon>
+							<md-slider ng-model="slider.value" ng-change="set()" min="0" max="255" aria-label="Brightness Slider" flex="" md-discrete=""></md-slider>
+						</md-slider-container>
+					</div>
+				</div>
+				<div class="col-xs-12">
+					<div ng-controller="OptsCtrl">
+						<h2>Options</h2>
+						<div ng-repeat="(k, v) in opts">
+							<label>{{k}}
+								<input ng-if="v.type === 'color'" class="{{v.type}}" type="color" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
+								<input class="{{v.type}}" type="text" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
+							</label>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
   </body>
 </html>
