@@ -11,6 +11,7 @@ RUN apk add --no-cache python3 && \
 WORKDIR /src
 
 COPY ./src/requirements.txt .
+RUN ls -lh
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./src /src

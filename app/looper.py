@@ -5,6 +5,7 @@ from datetime import datetime
 
 DELAY = 0.0125
 mode = strip.modes['NightRider']
+# mode = strip.modes['Solid']
 
 def loop():
     while True:

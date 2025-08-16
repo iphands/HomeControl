@@ -7,18 +7,22 @@ from itertools import cycle
 from time import sleep
 from random import randint
 
-UDP_IP = "192.168.10.37"
+# UDP_IP = "10.226.227.19"
+# UDP_IP = "10.226.227.210"
+# UDP_IP = "192.168.10.37"
+UDP_IP = "192.168.11.127"
 UDP_PORT = 4210
 PROTOCOL_SKIP = 3
-NUM_LEDS = 64
+NUM_LEDS = 67
 
 modes = {}
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-LEDS = list(range((NUM_LEDS * 3) + PROTOCOL_SKIP))
+# LEDS = list(range((NUM_LEDS * 3) + PROTOCOL_SKIP))
+LEDS = [0] * ((NUM_LEDS * 3) + PROTOCOL_SKIP)
 LEDS[0] = 1
 LEDS[1] = 0
-LEDS[2] = 10
+LEDS[2] = 250
 SEQ = 0
 
 def get_brightness():
@@ -59,8 +63,10 @@ def get_packet():
         SEQ = 0
     return t
 
-def send(delay=0):
+def send(delay=0.001):
+    global SEQ
     sock.sendto(bytearray(get_packet()), (UDP_IP, UDP_PORT))
+    print(f"send {SEQ}")
     sleep(delay)
 
 def simple_walk(arr, pool):
