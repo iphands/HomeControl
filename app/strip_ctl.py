@@ -11,6 +11,7 @@ UDP_IP = "esp32c6-00.lan"
 UDP_PORT = 4210
 PROTOCOL_SKIP = 3
 NUM_LEDS = 67
+TOTAL = (NUM_LEDS * 3) + 3
 
 modes = {}
 
@@ -65,6 +66,7 @@ def get_packet():
     SEQ += 1
     if SEQ > 255:
         SEQ = 0
+    assert len(t) == TOTAL
     return t
 
 
@@ -106,6 +108,9 @@ class Mode:
         self.opts = DotMap(opts)
         self.name = name
         modes[name] = self
+
+    def say_name(self):
+        print(f"MODE: {self.name}")
 
     def get_opts(self):
         return self.opts.toDict()

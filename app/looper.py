@@ -12,6 +12,7 @@ mode = strip.modes["Collider"]
 def loop():
     while True:
         a = datetime.now()
+        # mode.say_name()
         mode.update()
         b = datetime.now()
         c = (b - a).microseconds / 1000000.0
