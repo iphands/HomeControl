@@ -26,7 +26,7 @@
 #define LED_STRIP 1
 #define FAN 99
 
-const char* ssid     = SSID;
+const char* ssid = SSID;
 const char* password = PASS;
 const unsigned int localUdpPort = 4210;
 const unsigned short int offset = 2;
@@ -79,7 +79,7 @@ void try_connect() {
 void get_udp() {
   int packetSize = Udp.parsePacket();
   if (packetSize) {
-    Serial.printf("\nReceived %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
+    // Serial.printf("\nReceived %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
     int len = Udp.read(incomingPacket, 255);
     if (len > 0) {
       incomingPacket[len] = 0;
@@ -103,14 +103,14 @@ int skip() {
   return 0;
 }
 
-void remote_press (int pin) {
+void remote_press(int pin) {
   digitalWrite(pin, HIGH);
   delay(500);
   digitalWrite(pin, LOW);
 }
 
-void do_led () {
-   Serial.printf("type: %d, sequence byte: %d\n", incomingPacket[TYPE], incomingPacket[SEQ]);
+void do_led() {
+  // Serial.printf("type: %d, sequence byte: %d\n", incomingPacket[TYPE], incomingPacket[SEQ]);
   if (incomingPacket[TYPE] == FAN) {
     // do_fan();
     return;
@@ -124,9 +124,9 @@ void do_led () {
   FastLED.setBrightness(incomingPacket[BRIGHTNESS]);
 
   for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i].red   = incomingPacket[(i * 3) + PROTOCOL_SKIP + 0];
+    leds[i].red = incomingPacket[(i * 3) + PROTOCOL_SKIP + 0];
     leds[i].green = incomingPacket[(i * 3) + PROTOCOL_SKIP + 1];
-    leds[i].blue  = incomingPacket[(i * 3) + PROTOCOL_SKIP + 2];
+    leds[i].blue = incomingPacket[(i * 3) + PROTOCOL_SKIP + 2];
 #if DEBUG
     Serial.println(leds[i]);
 #endif
@@ -134,9 +134,8 @@ void do_led () {
   FastLED.show();
 }
 
-void loop () {
+void loop() {
   digitalWrite(LED_BUILTIN, HIGH);
   get_udp();
   try_connect();
-  delay(10);
 }

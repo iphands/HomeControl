@@ -19,7 +19,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 LEDS = [0] * ((NUM_LEDS * 3) + PROTOCOL_SKIP)
 LEDS[0] = 1
 LEDS[1] = 0
-LEDS[2] = 250
+LEDS[2] = 255
 SEQ = 0
 
 
@@ -142,10 +142,10 @@ class NightRider(Mode):
             self,
             self.__class__.__name__,
             {
-                "color": options.create_color(colors.YELLOW),
-                # "fill_color": options.create_color(colors.BLACK),
-                "tail_color": options.create_color(colors.RED),
+                "color": options.create_color(colors.PURPLE),
+                "tail_color": options.create_color(colors.BLUE),
                 "fade": options.create_bool(True),
+                # "fill_color": options.create_color(colors.BLACK),
             },
         )
         self.counter = 0
