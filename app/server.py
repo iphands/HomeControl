@@ -49,6 +49,7 @@ def delay():
 
 @app.route("/opts", methods=["GET", "POST"])
 def opts():
+    orig_opts = loop.get_opts()
     if request.method == "POST":
         opts = request.get_json()
         for key in opts:
@@ -58,16 +59,15 @@ def opts():
                 try:
                     opts[key]["val"] = int(opts[key]["val"])
                 except:
-                    pass
+                    opts[key]["val"] = orig_opts[key]["val"]
         loop.set_opts(opts)
 
-    opts = loop.get_opts()
-    for key, val in opts.items():
-        opt = val
+    for key, opt in orig_opts.items():
+        print(opt)
         if opt["type"] == "color":
             rgb_hex = "#%02x%02x%02x" % tuple(opt["val"])
             opt["val"] = rgb_hex
-    return jsonify({"opts": opts})
+    return jsonify({"opts": orig_opts})
 
 
 def start_server():

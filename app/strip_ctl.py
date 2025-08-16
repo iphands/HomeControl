@@ -266,23 +266,23 @@ class Sparkle(Mode):
             self,
             self.__class__.__name__,
             {
-                "low": 0,
-                "high": 255,
-                "r_on": True,
-                "g_on": False,
-                "b_on": True,
-                "decay": 0.92,
+                "low": options.create_int(0),
+                "high": options.create_int(255),
+                "r_on": options.create_bool(True),
+                "g_on": options.create_bool(False),
+                "b_on": options.create_bool(True),
+                "decay": options.create_float(0.92),
             },
         )
         self.arr = [0, 0, 0]
 
     def get_arr(self):
-        if self.opts.r_on:
-            self.arr[0] = randint(self.opts.low, self.opts.high)
-        if self.opts.g_on:
-            self.arr[1] = randint(self.opts.low, self.opts.high)
-        if self.opts.b_on:
-            self.arr[2] = randint(self.opts.low, self.opts.high)
+        if self.opts.r_on.val:
+            self.arr[0] = randint(self.opts.low.val, self.opts.high.val)
+        if self.opts.g_on.val:
+            self.arr[1] = randint(self.opts.low.val, self.opts.high.val)
+        if self.opts.b_on.val:
+            self.arr[2] = randint(self.opts.low.val, self.opts.high.val)
         return self.arr
 
     def update(self):
@@ -290,7 +290,7 @@ class Sparkle(Mode):
             if randint(0, (NUM_LEDS * 3)) == 0:
                 set_led_arr(x, self.get_arr())
             else:
-                set_led_arr(x, vol(get_led(x), self.opts.decay))
+                set_led_arr(x, vol(get_led(x), self.opts.decay.val))
         send()
 
 

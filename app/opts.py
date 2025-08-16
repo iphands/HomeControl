@@ -2,7 +2,11 @@ from colour import Color
 
 
 def create_int(val):
-    return {"val": val, "type": "int"}
+    return {"val": int(val), "type": "int"}
+
+
+def create_float(val):
+    return {"val": float(val), "type": "float"}
 
 
 def create_bool(val):
