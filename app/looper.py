@@ -3,18 +3,16 @@ import strip_ctl as strip
 from time import sleep
 from datetime import datetime
 
-DELAY = 0.0125
+DELAY = 0.0250
 mode = strip.modes["NightRider"]
 # mode = strip.modes['Solid']
+mode = strip.modes["Collider"]
 
 
 def loop():
     while True:
         a = datetime.now()
-        try:
-            mode.update()
-        except:
-            pass
+        mode.update()
         b = datetime.now()
         c = (b - a).microseconds / 1000000.0
         if DELAY > c:
@@ -40,9 +38,9 @@ def get_opts():
     return mode.get_opts()
 
 
-def set_opts(input):
+def set_opts(val):
     global mode
-    mode.set_opts(input)
+    mode.set_opts(val)
 
 
 def get_delay():

@@ -54,6 +54,8 @@ def opts():
         for key in opts:
             if opts[key]["type"] == "bool":
                 opts[key]["val"] = True if opts[key]["val"] == "true" else False
+            if opts[key]["type"] == "int":
+                opts[key]["val"] = int(opts[key]["val"])
         loop.set_opts(opts)
     return jsonify({"opts": loop.get_opts()})
 

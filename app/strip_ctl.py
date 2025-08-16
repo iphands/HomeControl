@@ -116,6 +116,8 @@ class Mode:
             if key in orig:
                 if newopts[key]["type"] == "color":
                     orig[key] = options.set_color(newopts[key])
+                    continue
+                orig[key] = newopts[key]
         self.opts = DotMap(orig)
 
 
@@ -177,35 +179,55 @@ class Collider(Mode):
             self,
             self.__class__.__name__,
             {
-                "color": options.create_color(colors.YELLOW),
-                "fill_color": options.create_color(colors.BLACK),
-                "tail_color": options.create_color(colors.RED),
-                "fade": options.create_bool(True),
+                "color_a": options.create_color(colors.PURPLE),
+                "color_b": options.create_color(colors.BLUE),
+                "collision_decay": options.create_int(7),
             },
         )
-        self.counter = 0
-        self.direction = 1
+        self.counter_a = 0
+        self.direction_a = 1
+        self.counter_b = NUM_LEDS
+        self.direction_b = -1
+        self.collision = []
+        self.collision_stren = 100
 
     def update(self):
-        if not self.opts.fade.val:
-            for x in range(0, NUM_LEDS):
-                set_led_arr(x, self.opts.fill_color.val)
-        for x in range(0, NUM_LEDS):
-            if self.counter == x:
-                set_led_arr(x, self.opts.color.val)
-                if self.opts.tail_color.val:
-                    if self.counter != 0 and self.counter != (NUM_LEDS - 1):
-                        set_led_arr((x - self.direction), self.opts.tail_color.val)
-            elif self.opts.fade.val:
-                set_led_arr(x, vol(get_led(x), 0.60))
-        self.counter += self.direction
-        if self.counter >= NUM_LEDS:
-            self.counter = NUM_LEDS - 1
-            self.direction = -1
-        if self.counter < 0:
-            self.counter = 1
-            self.direction = 1
+        solid([0, 0, 0])
+        if len(self.collision):
+            stren = self.collision_stren / 100
+            color = [int(i * stren) for i in colors.RED]
+            for i in self.collision:
+                set_led_arr(i, color)
+                self.collision_stren -= self.opts.collision_decay.val
+            if self.collision_stren < 0:
+                self.collision = []
+                self.collision_stren = 100
+
+        MID = int(NUM_LEDS / 2)
+        self.counter_a, self.direction_a = self._update(
+            self.counter_a, self.direction_a, self.opts.color_a.val
+        )
+        self.counter_b, self.direction_b = self._update(
+            self.counter_b, self.direction_b, self.opts.color_b.val
+        )
+        if self.counter_a >= self.counter_b:
+            self.direction_a *= -1
+            self.direction_b *= -1
+            self.collision = [self.counter_a, self.counter_b]
         send()
+
+    def _update(self, counter, direction, color):
+        for x in range(0, NUM_LEDS):
+            if counter == x:
+                set_led_arr(x, color)
+        counter += direction
+        if counter >= NUM_LEDS:
+            counter = NUM_LEDS
+            direction = -1
+        if counter < 0:
+            counter = 1
+            direction = 1
+        return counter, direction
 
 
 class Christmas(Mode):
