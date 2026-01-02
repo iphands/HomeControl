@@ -218,7 +218,7 @@ class Collider(Mode):
         )
         self.counter_a = 0
         self.direction_a = 1
-        self.counter_b = NUM_LEDS
+        self.counter_b = self.strip.NUM_LEDS
         self.direction_b = -1
         self.collision = []
         self.collision_stren = 100
@@ -235,7 +235,7 @@ class Collider(Mode):
                 self.collision = []
                 self.collision_stren = 100
 
-        MID = int(NUM_LEDS / 2)
+        MID = int(self.strip.NUM_LEDS / 2)
         self.counter_a, self.direction_a = self._update(
             self.counter_a, self.direction_a, self.opts.color_a.val
         )
@@ -249,12 +249,12 @@ class Collider(Mode):
         send()
 
     def _update(self, counter, direction, color):
-        for x in range(0, NUM_LEDS):
+        for x in range(0, self.strip.NUM_LEDS):
             if counter == x:
                 self.strip.set_led_arr(x, color)
         counter += direction
-        if counter >= NUM_LEDS:
-            counter = NUM_LEDS
+        if counter >= self.strip.NUM_LEDS:
+            counter = self.strip.NUM_LEDS
             direction = -1
         if counter < 0:
             counter = 1
@@ -318,8 +318,8 @@ class Sparkle(Mode):
         return self.arr
 
     def update(self):
-        for x in range(0, NUM_LEDS):
-            if randint(0, (NUM_LEDS * 3)) == 0:
+        for x in range(0, self.strip.NUM_LEDS):
+            if randint(0, (self.strip.NUM_LEDS * 3)) == 0:
                 self.strip.set_led_arr(x, self.get_arr())
             else:
                 self.strip.set_led_arr(x, vol(get_led(x), self.opts.decay.val))
