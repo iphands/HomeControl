@@ -7,10 +7,10 @@
 #define TYPE 0
 #define SEQ 1
 #define BRIGHTNESS 2
+#define LED_LENGTH 3
+#define ID 4
+#define LED_START 5
 
-#define PROTOCOL_SKIP 3
-
-#define NUM_LEDS 67
 #define LED_DATA_PIN D0
 
 // for fan control
@@ -19,25 +19,31 @@
 // #define FAN_OFF_PIN 4
 
 // debug
-#define DEBUG 0
 #define BLUE_PIN LED_BUILTIN
 
 // message types
 #define LED_STRIP 1
 #define FAN 99
 
+#define DEBUG 1
+
 const char* ssid = SSID;
 const char* password = PASS;
-const unsigned int localUdpPort = 4210;
+const unsigned int udp_port = 4210;
 const unsigned short int offset = 2;
+const int DEVICE_ID = 0b00000010;
 
 unsigned int tick_count = 0;
 int seq = 0;
+int num_leds = 0;
+
+
 WiFiUDP Udp;
-char incomingPacket[255];
-CRGB leds[NUM_LEDS];
+char packet[255];
+CRGB leds[255];
 
 void connect() {
+  // Serial.printf("DEBUG Connecting to: %s\n", ssid);
   if (WiFi.status() != WL_CONNECTED) {
     Serial.printf("Connecting to: %s\n", ssid);
     WiFi.mode(WIFI_STA);
@@ -48,15 +54,16 @@ void connect() {
     }
     Serial.printf("\nWiFi connected\n");
     Serial.printf(WiFi.localIP().toString().c_str());
+    Serial.printf("\n");
   }
 }
 
 void setup() {
   Serial.begin(115200);
   connect();
-  Udp.begin(localUdpPort);
-  FastLED.addLeds<WS2811, LED_DATA_PIN, BRG>(leds, NUM_LEDS);
-  FastLED.setBrightness(50);
+  Udp.begin(udp_port);
+  // FastLED.addLeds<WS2811, LED_DATA_PIN, BRG>(leds, num_leds);
+  // FastLED.setBrightness(50);
   // pinMode(LIGHT_PIN,   OUTPUT);
   // pinMode(FAN_ON_PIN,  OUTPUT);
   // pinMode(FAN_OFF_PIN, OUTPUT);
@@ -80,24 +87,24 @@ void get_udp() {
   int packetSize = Udp.parsePacket();
   if (packetSize) {
     // Serial.printf("\nReceived %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
-    int len = Udp.read(incomingPacket, 255);
+    int len = Udp.read(packet, 255);
     if (len > 0) {
-      incomingPacket[len] = 0;
+      packet[len] = 0;
     }
-    // Serial.printf("UDP packet contents: %s\n", incomingPacket);
+    // Serial.printf("UDP packet contents: %s\n", packet);
     digitalWrite(LED_BUILTIN, LOW);
     do_led();
   }
 }
 
 int skip() {
-  if (incomingPacket[SEQ] <= seq) {
+  if (packet[SEQ] <= seq) {
     // here we probably rolled back to 0 set seq to 0 and  dont skip
-    if (incomingPacket[SEQ] == 0 || ((seq - incomingPacket[SEQ]) > 20)) {
+    if (packet[SEQ] == 0 || ((seq - packet[SEQ]) > 20)) {
       seq = 0;
       return 0;
     }
-    Serial.printf("seq is %d and incoming is %d, skipping\n", seq, incomingPacket[SEQ]);
+    Serial.printf("seq is %d and incoming is %d, skipping\n", seq, packet[SEQ]);
     return 1;
   }
   return 0;
@@ -110,25 +117,43 @@ void remote_press(int pin) {
 }
 
 void do_led() {
-  // Serial.printf("type: %d, sequence byte: %d\n", incomingPacket[TYPE], incomingPacket[SEQ]);
-  if (incomingPacket[TYPE] == FAN) {
+  // Serial.printf("type: %d, sequence byte: %d\n", packet[TYPE], packet[SEQ]);
+  if (packet[TYPE] == FAN) {
     // do_fan();
     return;
   }
 
+  //  Only continue if this is about me
+  if ((DEVICE_ID != packet[ID])) {
+    return;
+  }
+  Serial.println("DEBUG3");
+
 #if DEBUG
-  Serial.printf("sequence byte: %d\n", incomingPacket[SEQ]);
+  Serial.printf("Got packet about me 0x%08lX == 0x%08lX\n", DEVICE_ID, packet[ID]);
 #endif
 
-  seq = incomingPacket[SEQ];
-  FastLED.setBrightness(incomingPacket[BRIGHTNESS]);
+  // First time we should set LED count
+  if (num_leds <= 0) {
+    num_leds = packet[LED_LENGTH];
+    // FastLED.addLeds<WS2811, LED_DATA_PIN, BRG>(leds, num_leds);
+    // FastLED.setBrightness(50);
+  }
 
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i].red = incomingPacket[(i * 3) + PROTOCOL_SKIP + 0];
-    leds[i].green = incomingPacket[(i * 3) + PROTOCOL_SKIP + 1];
-    leds[i].blue = incomingPacket[(i * 3) + PROTOCOL_SKIP + 2];
 #if DEBUG
-    Serial.println(leds[i]);
+  Serial.printf("num_leds: %d\n", num_leds);
+  Serial.printf("sequence byte: %d\n", packet[SEQ]);
+#endif
+
+  seq = packet[SEQ];
+  FastLED.setBrightness(packet[BRIGHTNESS]);
+
+  for (int i = packet[LED_START]; i < num_leds; i++) {
+    leds[i].red = packet[(i * 3)   + 0];
+    leds[i].green = packet[(i * 3) + 1];
+    leds[i].blue = packet[(i * 3)  + 2];
+#if DEBUG
+    Serial.printf("leds[%d]\n", leds[i]);
 #endif
   }
   FastLED.show();

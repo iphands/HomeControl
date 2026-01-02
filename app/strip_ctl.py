@@ -7,107 +7,132 @@ from itertools import cycle
 from time import sleep
 from random import randint
 
-UDP_IP = "esp32c6-00.lan"
-UDP_PORT = 4210
-PROTOCOL_SKIP = 3
-NUM_LEDS = 67
-TOTAL = (NUM_LEDS * 3) + 3
 
-modes = {}
+# modes = {}
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# LEDS = list(range((NUM_LEDS * 3) + PROTOCOL_SKIP))
-LEDS = [0] * ((NUM_LEDS * 3) + PROTOCOL_SKIP)
-LEDS[0] = 1
-LEDS[1] = 0
-LEDS[2] = 255
-SEQ = 0
+class Strip():
+    def __init__(self, dev_id, hostname, num_leds):
+        self.PROTOCOL_SKIP = 5
+        self.SEQ = 0
 
+        self.dev_id = dev_id
 
-def get_brightness():
-    return LEDS[2]
+        self.modes = {}
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        self.UDP_IP = hostname
+        self.UDP_PORT = 4210
 
-def set_brightness(val):
-    LEDS[2] = val
+        self.NUM_LEDS = num_leds
+        self.TOTAL = (self.NUM_LEDS * 3) + self.PROTOCOL_SKIP
 
+        self.LEDS = [0] * ((self.NUM_LEDS * 3) + self.PROTOCOL_SKIP)
+        self.LEDS[0] = 1
+        self.LEDS[1] = 0
+        self.LEDS[2] = 255
+        self.LEDS[3] = self.NUM_LEDS
+        self.LEDS[4] = dev_id
 
-def set_led(led, r, g, b, dbg=False):
-    if led > -1:
-        LEDS[(led * 3) + PROTOCOL_SKIP + 0] = r
-        LEDS[(led * 3) + PROTOCOL_SKIP + 1] = g
-        LEDS[(led * 3) + PROTOCOL_SKIP + 2] = b
-        if dbg:
-            print("Setting %d to %d, %d, %d" % (led, r, g, b))
-
-
-def set_led_arr(led, arr, dbg=False):
-    set_led(led, arr[0], arr[1], arr[2], dbg)
-
-
-def get_led(led):
-    r = LEDS[(led * 3) + PROTOCOL_SKIP + 0]
-    g = LEDS[(led * 3) + PROTOCOL_SKIP + 1]
-    b = LEDS[(led * 3) + PROTOCOL_SKIP + 2]
-    return [r, g, b]
+        # init the modes for now
+        NightRider(self)
+        RainbowCycle(self)
+        Collider(self)
+        Christmas(self)
+        MardiGras(self)
+        ArrGeeBee(self)
+        Sparkle(self)
+        Breathe(self)
+        Solid(self)
+        White(self)
+        Off(self)
 
 
-def vol(rgb, pct):
-    rgb[0] = rgb[0] * pct
-    rgb[1] = rgb[1] * pct
-    rgb[2] = rgb[2] * pct
-    return rgb
+    def get_brightness():
+        return self.LEDS[2]
 
 
-def get_packet():
-    global SEQ
-    LEDS[1] = SEQ
-    t = [int(i) for i in LEDS]
-    SEQ += 1
-    if SEQ > 255:
-        SEQ = 0
-    assert len(t) == TOTAL
-    return t
+    def set_brightness(val):
+        self.LEDS[2] = val
 
 
-def send(delay=0.001):
-    global SEQ
-    sock.sendto(bytearray(get_packet()), (UDP_IP, UDP_PORT))
-    sleep(delay)
+    def set_led(self, led, r, g, b, dbg=False):
+        if led > -1:
+            self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 0] = r
+            self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 1] = g
+            self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 2] = b
+            if dbg:
+                print("Setting %d to %d, %d, %d" % (led, r, g, b))
 
 
-def simple_walk(arr, pool):
-    if not (len(arr) + NUM_LEDS) % 2:
-        next(pool)
-    for x in range(0, NUM_LEDS):
-        set_led_arr(x, next(pool))
-    send()
+    def set_led_arr(self, led, arr, dbg=False):
+        self.set_led(led, arr[0], arr[1], arr[2], dbg)
 
 
-def rainbow_solid():
-    while True:
-        for i in range(0, 1000):
-            x = i / 1000.0
-            solid(get_rgb(x, 1, 1))
-            sleep(0.01)
+    def get_led(self, led):
+        r = self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 0]
+        g = self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 1]
+        b = self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 2]
+        return [r, g, b]
 
 
-def get_rgb(h, s, v):
-    arr = colorsys.hsv_to_rgb(h, s, v)
-    return [arr[0] * 255, arr[1] * 255, arr[2] * 255]
+    def vol(self, rgb, pct):
+        rgb[0] = rgb[0] * pct
+        rgb[1] = rgb[1] * pct
+        rgb[2] = rgb[2] * pct
+        return rgb
 
 
-def solid(arr):
-    for x in range(0, NUM_LEDS):
-        set_led_arr(x, arr)
-    send()
+    def get_packet(self):
+        self.LEDS[1] = self.SEQ
+        t = [int(i) for i in self.LEDS]
+        self.SEQ += 1
+        if self.SEQ > 255:
+            self.SEQ = 0
+
+        assert len(t) == self.TOTAL
+        # if self.dev_id == 2:
+        #    print(t)
+        return t
+
+
+    def send(self, delay=0.001):
+        self.sock.sendto(bytearray(self.get_packet()), (self.UDP_IP, self.UDP_PORT))
+        sleep(delay)
+
+
+    def simple_walk(arr, pool):
+        if not (len(arr) + self.NUM_LEDS) % 2:
+            next(pool)
+        for x in range(0, self.NUM_LEDS):
+            self.set_led_arr(x, next(pool))
+        self.send()
+
+
+    def rainbow_solid():
+        while True:
+            for i in range(0, 1000):
+                x = i / 1000.0
+                solid(get_rgb(x, 1, 1))
+                sleep(0.01)
+
+
+    def get_rgb(self, h, s, v):
+        arr = colorsys.hsv_to_rgb(h, s, v)
+        return [arr[0] * 255, arr[1] * 255, arr[2] * 255]
+
+
+    def solid(self, arr):
+        for x in range(0, self.NUM_LEDS):
+            self.set_led_arr(x, arr)
+        self.send()
 
 
 class Mode:
-    def __init__(self, name, opts):
+    def __init__(self, name, strip, opts):
         self.opts = DotMap(opts)
         self.name = name
-        modes[name] = self
+        self.strip = strip
+        strip.modes[name] = self
 
     def say_name(self):
         print(f"MODE: {self.name}")
@@ -127,25 +152,26 @@ class Mode:
 
 
 class RainbowCycle(Mode):
-    def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, {})
+    def __init__(self, strip):
+        Mode.__init__(self, self.__class__.__name__, strip, {})
         self.colors = []
-        self.multiplier = 1.0 / NUM_LEDS
-        for x in range(0, NUM_LEDS):
-            self.colors.append(get_rgb((x * self.multiplier), 1, 1))
+        self.multiplier = 1.0 / self.strip.NUM_LEDS
+        for x in range(0, self.strip.NUM_LEDS):
+            self.colors.append(self.strip.get_rgb((x * self.multiplier), 1, 1))
 
     def update(self):
         for x in range(0, NUM_LEDS):
-            set_led_arr(x, self.colors[x])
+            self.strip.set_led_arr(x, self.colors[x])
         send()
         self.colors.insert(0, self.colors.pop())
 
 
 class NightRider(Mode):
-    def __init__(self):
+    def __init__(self, strip):
         Mode.__init__(
             self,
             self.__class__.__name__,
+            strip,
             {
                 "color": options.create_color(colors.PURPLE),
                 "tail_color": options.create_color(colors.BLUE),
@@ -158,31 +184,32 @@ class NightRider(Mode):
 
     def update(self):
         if not self.opts.fade.val:
-            for x in range(0, NUM_LEDS):
-                set_led_arr(x, self.opts.fill_color.val)
-        for x in range(0, NUM_LEDS):
+            for x in range(0, self.strip.NUM_LEDS):
+                self.strip.set_led_arr(x, self.opts.fill_color.val)
+        for x in range(0, self.strip.NUM_LEDS):
             if self.counter == x:
-                set_led_arr(x, self.opts.color.val)
+                self.strip.set_led_arr(x, self.opts.color.val)
                 if self.opts.tail_color.val:
-                    if self.counter != 0 and self.counter != (NUM_LEDS - 1):
-                        set_led_arr((x - self.direction), self.opts.tail_color.val)
+                    if self.counter != 0 and self.counter != (self.strip.NUM_LEDS - 1):
+                        self.strip.set_led_arr((x - self.direction), self.opts.tail_color.val)
             elif self.opts.fade.val:
-                set_led_arr(x, vol(get_led(x), 0.60))
+                self.strip.set_led_arr(x, self.strip.vol(self.strip.get_led(x), 0.60))
         self.counter += self.direction
-        if self.counter >= NUM_LEDS:
-            self.counter = NUM_LEDS - 1
+        if self.counter >= self.strip.NUM_LEDS:
+            self.counter = self.strip.NUM_LEDS - 1
             self.direction = -1
         if self.counter < 0:
             self.counter = 1
             self.direction = 1
-        send()
+        self.strip.send()
 
 
 class Collider(Mode):
-    def __init__(self):
+    def __init__(self, strip):
         Mode.__init__(
             self,
             self.__class__.__name__,
+            strip,
             {
                 "color_a": options.create_color(colors.PURPLE),
                 "color_b": options.create_color(colors.BLUE),
@@ -202,7 +229,7 @@ class Collider(Mode):
             stren = self.collision_stren / 100
             color = [int(i * stren) for i in colors.RED]
             for i in self.collision:
-                set_led_arr(i, color)
+                self.strip.set_led_arr(i, color)
                 self.collision_stren -= self.opts.collision_decay.val
             if self.collision_stren < 0:
                 self.collision = []
@@ -224,7 +251,7 @@ class Collider(Mode):
     def _update(self, counter, direction, color):
         for x in range(0, NUM_LEDS):
             if counter == x:
-                set_led_arr(x, color)
+                self.strip.set_led_arr(x, color)
         counter += direction
         if counter >= NUM_LEDS:
             counter = NUM_LEDS
@@ -293,9 +320,9 @@ class Sparkle(Mode):
     def update(self):
         for x in range(0, NUM_LEDS):
             if randint(0, (NUM_LEDS * 3)) == 0:
-                set_led_arr(x, self.get_arr())
+                self.strip.set_led_arr(x, self.get_arr())
             else:
-                set_led_arr(x, vol(get_led(x), self.opts.decay.val))
+                self.strip.set_led_arr(x, vol(get_led(x), self.opts.decay.val))
         send()
 
 
@@ -360,17 +387,3 @@ class Off(Mode):
 
     def load_cb(self, d):
         d["set_delay"](0.250)
-
-
-# init the modes for now
-NightRider()
-RainbowCycle()
-Collider()
-Christmas()
-MardiGras()
-ArrGeeBee()
-Sparkle()
-Breathe()
-Solid()
-White()
-Off()

@@ -1,19 +1,26 @@
 import _thread
-import strip_ctl as strip
+from strip_ctl import Strip
 from time import sleep
 from datetime import datetime
 
 DELAY = 0.0250
-mode = strip.modes["NightRider"]
-# mode = strip.modes['Solid']
-mode = strip.modes["Collider"]
 
+strips = [
+    Strip(1, "esp32c6-00.lan", 67),
+    Strip(2, "esp32c6-01.lan", 10),
+]
+
+modes = [
+    strips[0].modes["NightRider"],
+    strips[1].modes["NightRider"],
+]
 
 def loop():
     while True:
         a = datetime.now()
         # mode.say_name()
-        mode.update()
+        modes[0].update()
+        modes[1].update()
         b = datetime.now()
         c = (b - a).microseconds / 1000000.0
         if DELAY > c:
@@ -22,7 +29,7 @@ def loop():
 
 def set_mode(m):
     global mode
-    mode = strip.modes[m]
+    mode = strips[0].modes[m]
     if hasattr(mode, "load_cb"):
         mode.load_cb({"set_delay": set_delay})
 
