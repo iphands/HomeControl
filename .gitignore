@@ -1,5 +1,8 @@
 /embedded/secret.h
 /venv
+/tests_external/venv
+/tests_external/.pytest_cache
+__pycache__
 
 *pyc
 *[#]*[#]

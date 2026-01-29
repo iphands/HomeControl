@@ -176,7 +176,7 @@ class NightRider(Mode):
                 "color": options.create_color(colors.PURPLE),
                 "tail_color": options.create_color(colors.BLUE),
                 "fade": options.create_bool(True),
-                # "fill_color": options.create_color(colors.BLACK),
+                "fill_color": options.create_color(colors.BLACK),
             },
         )
         self.counter = 0

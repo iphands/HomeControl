@@ -49,28 +49,74 @@ def delay():
 
 @app.route("/opts", methods=["GET", "POST"])
 def opts():
-    orig_opts = loop.get_opts()
     if request.method == "POST":
-        opts = request.get_json()
-        for key in opts:
-            if opts[key]["type"] == "bool":
-                opts[key]["val"] = True if opts[key]["val"] == "true" else False
-            if opts[key]["type"] == "int":
+        orig_opts = loop.get_opts()
+        new_opts = request.get_json()
+        for key in new_opts:
+            if new_opts[key]["type"] == "bool":
+                new_opts[key]["val"] = True if new_opts[key]["val"] == "true" else False
+            if new_opts[key]["type"] == "int":
                 try:
-                    opts[key]["val"] = int(opts[key]["val"])
+                    new_opts[key]["val"] = int(new_opts[key]["val"])
                 except:
-                    opts[key]["val"] = orig_opts[key]["val"]
-        loop.set_opts(opts)
+                    new_opts[key]["val"] = orig_opts.get(key, {}).get("val", 0)
+        loop.set_opts(new_opts)
 
-    for key, opt in orig_opts.items():
+    # Fetch current opts (after any updates)
+    current_opts = loop.get_opts()
+    for key, opt in current_opts.items():
         if isinstance(opt, int):
             continue
         if opt["type"] == "color":
             rgb_hex = "#%02x%02x%02x" % tuple(opt["val"])
             opt["val"] = rgb_hex
-    return jsonify({"opts": orig_opts})
+    return jsonify({"opts": current_opts})
 
 
-def start_server():
+@app.route("/strips", methods=["GET"])
+def strips():
+    """Return information about configured LED strips."""
+    return jsonify({"strips": loop.get_strips()})
+
+
+@app.route("/strips/<int:strip_id>", methods=["POST"])
+def configure_strip(strip_id):
+    """Configure a strip's network settings (debug mode only).
+
+    POST body:
+        - hostname: UDP destination hostname
+        - port: UDP destination port
+    """
+    data = request.get_json() or {}
+    result = loop.configure_strip(
+        strip_id,
+        hostname=data.get("hostname"),
+        port=data.get("port"),
+    )
+    return jsonify(result)
+
+
+@app.route("/looper", methods=["GET", "POST"])
+def looper():
+    """Control the animation loop (debug mode only).
+
+    GET: Returns current loop state
+    POST: Control the loop with:
+        - iterations: number of loop iterations to run
+        - next_state: "pause" or "running"
+    """
+    if request.method == "GET":
+        return jsonify(loop.get_loop_state())
+
+    data = request.get_json() or {}
+    result = loop.loop_control(
+        iterations=data.get("iterations"),
+        next_state=data.get("next_state"),
+    )
+    return jsonify(result)
+
+
+def start_server(debug=False):
+    if debug:
+        loop.set_debug_mode(True)
     app.run(host="0.0.0.0", port=5000, debug=False)
-    # app.run(host='0.0.0.0', port=5000, debug=True)
