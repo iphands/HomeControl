@@ -130,3 +130,9 @@ When rewriting:
 - Maintain the same API endpoints and response formats
 - Maintain the same UDP packet structure
 - The test suite should pass without modification
+
+## Git Commit Guidelines
+
+- Do NOT add Co-Authored-By lines mentioning Claude or AI
+- Do NOT mention Claude or AI assistance in commit messages
+- Use the existing commit message style with prefixes like `[rs]`, `[test]`, `[feature]`, etc.
