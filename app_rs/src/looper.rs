@@ -58,15 +58,9 @@ pub struct LooperState {
 
 impl LooperState {
     pub fn new(debug_mode: bool) -> Self {
-        let strips = vec![
-            Strip::new(1, "esp32c6-00.lan", 67),
-            Strip::new(2, "esp32c6-01.lan", 83),
-        ];
+        let strips = vec![Strip::new(1, "esp32c6-00.lan", 67), Strip::new(2, "esp32c6-01.lan", 83)];
 
-        let strip_states: Vec<StripState> = strips
-            .into_iter()
-            .map(|strip| StripState::new(strip, "NightRider"))
-            .collect();
+        let strip_states: Vec<StripState> = strips.into_iter().map(|strip| StripState::new(strip, "NightRider")).collect();
 
         Self {
             strip_states,
@@ -194,8 +188,7 @@ impl LooperState {
     }
 
     pub fn get_strip_delay(&self, strip_id: u8) -> Option<f64> {
-        self.find_strip_state(strip_id)
-            .map(|idx| self.strip_states[idx].delay)
+        self.find_strip_state(strip_id).map(|idx| self.strip_states[idx].delay)
     }
 
     pub fn set_strip_delay(&mut self, strip_id: u8, val: f64) -> Option<f64> {
@@ -208,8 +201,7 @@ impl LooperState {
     }
 
     pub fn get_strip_opts(&self, strip_id: u8) -> Option<HashMap<String, OptValue>> {
-        self.find_strip_state(strip_id)
-            .map(|idx| self.strip_states[idx].get_opts())
+        self.find_strip_state(strip_id).map(|idx| self.strip_states[idx].get_opts())
     }
 
     pub fn set_strip_opts(&mut self, strip_id: u8, opts: HashMap<String, OptValue>) -> Option<HashMap<String, OptValue>> {

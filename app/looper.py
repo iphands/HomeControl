@@ -12,6 +12,7 @@ DEFAULT_DELAY = 0.0250
 @dataclass
 class StripState:
     """Per-strip state including mode, delay, and timing."""
+
     strip: Strip
     mode: Any  # Mode instance
     delay: float = DEFAULT_DELAY
@@ -124,7 +125,7 @@ def loop():
             _loop_control["event"].wait()
 
         now = time.time()
-        min_wait = float('inf')
+        min_wait = float("inf")
 
         # Update each strip based on its own delay
         for state in strip_states:
@@ -136,9 +137,9 @@ def loop():
             min_wait = min(min_wait, max(0, remaining))
 
         # Sleep until next strip needs update
-        if min_wait > 0 and min_wait != float('inf'):
+        if min_wait > 0 and min_wait != float("inf"):
             time.sleep(min_wait)
-        elif min_wait == float('inf'):
+        elif min_wait == float("inf"):
             # Fallback if no strips
             time.sleep(DEFAULT_DELAY)
 
@@ -152,12 +153,15 @@ def loop():
 
 # --- Global functions (apply to ALL strips for backward compatibility) ---
 
+
 def set_mode(m):
     """Set mode for ALL strips."""
     for state in strip_states:
         state.mode = state.strip.modes[m]
         if hasattr(state.mode, "load_cb"):
-            state.mode.load_cb({"set_delay": lambda d: set_strip_delay(state.strip.dev_id, d)})
+            state.mode.load_cb(
+                {"set_delay": lambda d: set_strip_delay(state.strip.dev_id, d)}
+            )
 
 
 def get_current_mode():
@@ -212,6 +216,7 @@ def set_brightness(num):
 
 
 # --- Per-strip functions ---
+
 
 def _find_strip_state(strip_id: int) -> Optional[StripState]:
     """Find strip state by ID."""
@@ -296,15 +301,17 @@ def get_strips():
     result = []
     for state in strip_states:
         strip = state.strip
-        result.append({
-            "id": strip.dev_id,
-            "hostname": strip.UDP_IP,
-            "port": strip.UDP_PORT,
-            "num_leds": strip.NUM_LEDS,
-            "mode": state.get_mode_name(),
-            "brightness": state.get_brightness(),
-            "delay": state.delay,
-        })
+        result.append(
+            {
+                "id": strip.dev_id,
+                "hostname": strip.UDP_IP,
+                "port": strip.UDP_PORT,
+                "num_leds": strip.NUM_LEDS,
+                "mode": state.get_mode_name(),
+                "brightness": state.get_brightness(),
+                "delay": state.delay,
+            }
+        )
     return result
 
 

@@ -112,6 +112,7 @@ def configure_strip(strip_id):
 
 # --- Per-strip endpoints ---
 
+
 @app.route("/strips/<int:strip_id>/mode", methods=["GET", "POST"])
 def strip_mode(strip_id):
     """Get or set mode for a specific strip."""
@@ -120,7 +121,10 @@ def strip_mode(strip_id):
         mode_name = data.get("mode")
         result = loop.set_strip_mode(strip_id, mode_name)
         if result is None:
-            return jsonify({"error": f"strip {strip_id} not found or invalid mode"}), 404
+            return (
+                jsonify({"error": f"strip {strip_id} not found or invalid mode"}),
+                404,
+            )
         return jsonify({"mode": result})
     else:
         result = loop.get_strip_mode(strip_id)

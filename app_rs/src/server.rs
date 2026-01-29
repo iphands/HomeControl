@@ -169,13 +169,17 @@ async fn set_brightness(data: web::Data<AppState>, req: web::Json<SetBrightnessR
 
 async fn get_delay(data: web::Data<AppState>) -> HttpResponse {
     let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(DelayResponse { delay: state.get_delay() })
+    HttpResponse::Ok().json(DelayResponse {
+        delay: state.get_delay(),
+    })
 }
 
 async fn set_delay(data: web::Data<AppState>, req: web::Json<SetDelayRequest>) -> HttpResponse {
     let mut state = data.looper_state.lock().unwrap();
     state.set_delay(req.delay);
-    HttpResponse::Ok().json(DelayResponse { delay: state.get_delay() })
+    HttpResponse::Ok().json(DelayResponse {
+        delay: state.get_delay(),
+    })
 }
 
 async fn get_opts(data: web::Data<AppState>) -> HttpResponse {
@@ -231,11 +235,7 @@ async fn get_strip_mode(data: web::Data<AppState>, path: web::Path<u8>) -> HttpR
     }
 }
 
-async fn set_strip_mode(
-    data: web::Data<AppState>,
-    path: web::Path<u8>,
-    req: web::Json<SetModeRequest>,
-) -> HttpResponse {
+async fn set_strip_mode(data: web::Data<AppState>, path: web::Path<u8>, req: web::Json<SetModeRequest>) -> HttpResponse {
     let strip_id = path.into_inner();
     let mut state = data.looper_state.lock().unwrap();
 
@@ -287,11 +287,7 @@ async fn get_strip_delay(data: web::Data<AppState>, path: web::Path<u8>) -> Http
     }
 }
 
-async fn set_strip_delay(
-    data: web::Data<AppState>,
-    path: web::Path<u8>,
-    req: web::Json<SetDelayRequest>,
-) -> HttpResponse {
+async fn set_strip_delay(data: web::Data<AppState>, path: web::Path<u8>, req: web::Json<SetDelayRequest>) -> HttpResponse {
     let strip_id = path.into_inner();
     let mut state = data.looper_state.lock().unwrap();
 

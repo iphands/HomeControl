@@ -10,7 +10,8 @@ from random import randint
 
 # modes = {}
 
-class Strip():
+
+class Strip:
     def __init__(self, dev_id, hostname, num_leds):
         self.PROTOCOL_SKIP = 5
         self.SEQ = 0
@@ -46,14 +47,11 @@ class Strip():
         White(self)
         Off(self)
 
-
     def get_brightness(self):
         return self.LEDS[2]
 
-
     def set_brightness(self, val):
         self.LEDS[2] = val
-
 
     def set_led(self, led, r, g, b, dbg=False):
         if led > -1:
@@ -63,10 +61,8 @@ class Strip():
             if dbg:
                 print("Setting %d to %d, %d, %d" % (led, r, g, b))
 
-
     def set_led_arr(self, led, arr, dbg=False):
         self.set_led(led, arr[0], arr[1], arr[2], dbg)
-
 
     def get_led(self, led):
         r = self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 0]
@@ -74,13 +70,11 @@ class Strip():
         b = self.LEDS[(led * 3) + self.PROTOCOL_SKIP + 2]
         return [r, g, b]
 
-
     def vol(self, rgb, pct):
         rgb[0] = rgb[0] * pct
         rgb[1] = rgb[1] * pct
         rgb[2] = rgb[2] * pct
         return rgb
-
 
     def get_packet(self):
         self.LEDS[1] = self.SEQ
@@ -94,11 +88,9 @@ class Strip():
         #    print(t)
         return t
 
-
     def send(self, delay=0.001):
         self.sock.sendto(bytearray(self.get_packet()), (self.UDP_IP, self.UDP_PORT))
         sleep(delay)
-
 
     def simple_walk(self, arr, pool):
         if not (len(arr) + self.NUM_LEDS) % 2:
@@ -107,7 +99,6 @@ class Strip():
             self.set_led_arr(x, next(pool))
         self.send()
 
-
     def rainbow_solid():
         while True:
             for i in range(0, 1000):
@@ -115,11 +106,9 @@ class Strip():
                 self.solid(get_rgb(x, 1, 1))
                 sleep(0.01)
 
-
     def get_rgb(self, h, s, v):
         arr = colorsys.hsv_to_rgb(h, s, v)
         return [arr[0] * 255, arr[1] * 255, arr[2] * 255]
-
 
     def solid(self, arr):
         for x in range(0, self.NUM_LEDS):
@@ -191,7 +180,9 @@ class NightRider(Mode):
                 self.strip.set_led_arr(x, self.opts.color.val)
                 if self.opts.tail_color.val:
                     if self.counter != 0 and self.counter != (self.strip.NUM_LEDS - 1):
-                        self.strip.set_led_arr((x - self.direction), self.opts.tail_color.val)
+                        self.strip.set_led_arr(
+                            (x - self.direction), self.opts.tail_color.val
+                        )
             elif self.opts.fade.val:
                 self.strip.set_led_arr(x, self.strip.vol(self.strip.get_led(x), 0.60))
         self.counter += self.direction
@@ -329,7 +320,9 @@ class Sparkle(Mode):
             if randint(0, (self.strip.NUM_LEDS * 3)) == 0:
                 self.strip.set_led_arr(x, self.get_arr())
             else:
-                self.strip.set_led_arr(x, self.strip.vol(self.strip.get_led(x), self.opts.decay.val))
+                self.strip.set_led_arr(
+                    x, self.strip.vol(self.strip.get_led(x), self.opts.decay.val)
+                )
         self.strip.send()
 
 
