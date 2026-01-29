@@ -20,33 +20,33 @@
   }]);
 
   app.factory('Mode', ['$resource', function ($resource) {
-    return $resource('/modes/:current', { current: '@current' }, {});
+    return $resource('/api/modes/:current', { current: '@current' }, {});
   }]);
 
   app.factory('Delay', ['$resource', function ($resource) {
-    return $resource('/delay', {}, {});
+    return $resource('/api/delay', {}, {});
   }]);
 
   app.factory('Brightness', ['$resource', function ($resource) {
-    return $resource('/brightness', {}, {});
+    return $resource('/api/brightness', {}, {});
   }]);
 
   app.factory('Opts', ['$resource', function ($resource) {
-    return $resource('/opts', {}, {});
+    return $resource('/api/opts', {}, {});
   }]);
 
   app.factory('Strips', ['$resource', function ($resource) {
-    return $resource('/strips', {}, {});
+    return $resource('/api/strips', {}, {});
   }]);
 
   // Per-strip service factory
   app.factory('StripService', ['$resource', function ($resource) {
     return function (stripId) {
       return {
-        Mode: $resource('/strips/' + stripId + '/mode', {}, {}),
-        Brightness: $resource('/strips/' + stripId + '/brightness', {}, {}),
-        Delay: $resource('/strips/' + stripId + '/delay', {}, {}),
-        Opts: $resource('/strips/' + stripId + '/opts', {}, {})
+        Mode: $resource('/api/strips/' + stripId + '/mode', {}, {}),
+        Brightness: $resource('/api/strips/' + stripId + '/brightness', {}, {}),
+        Delay: $resource('/api/strips/' + stripId + '/delay', {}, {}),
+        Opts: $resource('/api/strips/' + stripId + '/opts', {}, {})
       };
     };
   }]);

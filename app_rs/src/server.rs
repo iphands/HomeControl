@@ -1,10 +1,11 @@
 use crate::looper::{Looper, LooperState};
 use crate::modes::get_available_modes;
 use crate::opts::OptValue;
-use actix_files::Files;
+use actix_files::NamedFile;
 use actix_web::{web, App, HttpResponse, HttpServer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub struct AppState {
@@ -343,10 +344,9 @@ async fn control_looper(data: web::Data<AppState>, req: web::Json<LoopControlReq
     HttpResponse::Ok().json(result)
 }
 
-async fn hello() -> HttpResponse {
-    HttpResponse::PermanentRedirect()
-        .append_header(("location", "/static/index.html"))
-        .finish()
+async fn index(static_dir: web::Data<PathBuf>) -> actix_web::Result<NamedFile> {
+    let index_path = static_dir.join("index.html");
+    Ok(NamedFile::open(index_path)?)
 }
 
 pub async fn start_server(looper: Looper) -> std::io::Result<()> {
@@ -368,54 +368,60 @@ pub async fn start_server(looper: Looper) -> std::io::Result<()> {
         })
         .unwrap_or_else(|| std::path::PathBuf::from("../app/static"));
 
+    let static_dir_data = web::Data::new(static_dir.clone());
+
     HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
-            .route("/", web::get().to(hello))
-            .service(Files::new("/static", &static_dir).show_files_listing())
-            .route("/modes", web::get().to(get_modes))
-            .route("/modes/", web::get().to(get_modes))
-            .route("/modes/current", web::get().to(get_current_mode))
-            .route("/modes/current/", web::get().to(get_current_mode))
-            .route("/modes/current", web::post().to(set_current_mode))
-            .route("/modes/current/", web::post().to(set_current_mode))
-            .route("/brightness", web::get().to(get_brightness))
-            .route("/brightness/", web::get().to(get_brightness))
-            .route("/brightness", web::post().to(set_brightness))
-            .route("/brightness/", web::post().to(set_brightness))
-            .route("/delay", web::get().to(get_delay))
-            .route("/delay/", web::get().to(get_delay))
-            .route("/delay", web::post().to(set_delay))
-            .route("/delay/", web::post().to(set_delay))
-            .route("/opts", web::get().to(get_opts))
-            .route("/opts/", web::get().to(get_opts))
-            .route("/opts", web::post().to(set_opts))
-            .route("/opts/", web::post().to(set_opts))
-            .route("/strips", web::get().to(get_strips))
-            .route("/strips/", web::get().to(get_strips))
-            .route("/strips/{id}", web::post().to(configure_strip))
-            .route("/strips/{id}/", web::post().to(configure_strip))
+            .app_data(static_dir_data.clone())
+            // API routes - all prefixed with /api
+            .route("/api/modes", web::get().to(get_modes))
+            .route("/api/modes/", web::get().to(get_modes))
+            .route("/api/modes/current", web::get().to(get_current_mode))
+            .route("/api/modes/current/", web::get().to(get_current_mode))
+            .route("/api/modes/current", web::post().to(set_current_mode))
+            .route("/api/modes/current/", web::post().to(set_current_mode))
+            .route("/api/brightness", web::get().to(get_brightness))
+            .route("/api/brightness/", web::get().to(get_brightness))
+            .route("/api/brightness", web::post().to(set_brightness))
+            .route("/api/brightness/", web::post().to(set_brightness))
+            .route("/api/delay", web::get().to(get_delay))
+            .route("/api/delay/", web::get().to(get_delay))
+            .route("/api/delay", web::post().to(set_delay))
+            .route("/api/delay/", web::post().to(set_delay))
+            .route("/api/opts", web::get().to(get_opts))
+            .route("/api/opts/", web::get().to(get_opts))
+            .route("/api/opts", web::post().to(set_opts))
+            .route("/api/opts/", web::post().to(set_opts))
+            .route("/api/strips", web::get().to(get_strips))
+            .route("/api/strips/", web::get().to(get_strips))
+            .route("/api/strips/{id}", web::post().to(configure_strip))
+            .route("/api/strips/{id}/", web::post().to(configure_strip))
             // Per-strip endpoints
-            .route("/strips/{id}/mode", web::get().to(get_strip_mode))
-            .route("/strips/{id}/mode/", web::get().to(get_strip_mode))
-            .route("/strips/{id}/mode", web::post().to(set_strip_mode))
-            .route("/strips/{id}/mode/", web::post().to(set_strip_mode))
-            .route("/strips/{id}/brightness", web::get().to(get_strip_brightness))
-            .route("/strips/{id}/brightness/", web::get().to(get_strip_brightness))
-            .route("/strips/{id}/brightness", web::post().to(set_strip_brightness))
-            .route("/strips/{id}/brightness/", web::post().to(set_strip_brightness))
-            .route("/strips/{id}/delay", web::get().to(get_strip_delay))
-            .route("/strips/{id}/delay/", web::get().to(get_strip_delay))
-            .route("/strips/{id}/delay", web::post().to(set_strip_delay))
-            .route("/strips/{id}/delay/", web::post().to(set_strip_delay))
-            .route("/strips/{id}/opts", web::get().to(get_strip_opts))
-            .route("/strips/{id}/opts/", web::get().to(get_strip_opts))
-            .route("/strips/{id}/opts", web::post().to(set_strip_opts))
-            .route("/strips/{id}/opts/", web::post().to(set_strip_opts))
-            .route("/looper", web::get().to(get_looper_state))
-            .route("/looper/", web::get().to(get_looper_state))
-            .route("/looper", web::post().to(control_looper))
-            .route("/looper/", web::post().to(control_looper))
+            .route("/api/strips/{id}/mode", web::get().to(get_strip_mode))
+            .route("/api/strips/{id}/mode/", web::get().to(get_strip_mode))
+            .route("/api/strips/{id}/mode", web::post().to(set_strip_mode))
+            .route("/api/strips/{id}/mode/", web::post().to(set_strip_mode))
+            .route("/api/strips/{id}/brightness", web::get().to(get_strip_brightness))
+            .route("/api/strips/{id}/brightness/", web::get().to(get_strip_brightness))
+            .route("/api/strips/{id}/brightness", web::post().to(set_strip_brightness))
+            .route("/api/strips/{id}/brightness/", web::post().to(set_strip_brightness))
+            .route("/api/strips/{id}/delay", web::get().to(get_strip_delay))
+            .route("/api/strips/{id}/delay/", web::get().to(get_strip_delay))
+            .route("/api/strips/{id}/delay", web::post().to(set_strip_delay))
+            .route("/api/strips/{id}/delay/", web::post().to(set_strip_delay))
+            .route("/api/strips/{id}/opts", web::get().to(get_strip_opts))
+            .route("/api/strips/{id}/opts/", web::get().to(get_strip_opts))
+            .route("/api/strips/{id}/opts", web::post().to(set_strip_opts))
+            .route("/api/strips/{id}/opts/", web::post().to(set_strip_opts))
+            .route("/api/looper", web::get().to(get_looper_state))
+            .route("/api/looper/", web::get().to(get_looper_state))
+            .route("/api/looper", web::post().to(control_looper))
+            .route("/api/looper/", web::post().to(control_looper))
+            // Root path serves index.html
+            .route("/", web::get().to(index))
+            // Static files served from root (css, js)
+            .service(actix_files::Files::new("/", &static_dir).index_file("index.html"))
     })
     .bind("0.0.0.0:5000")?
     .run()

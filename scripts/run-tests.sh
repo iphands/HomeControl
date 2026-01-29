@@ -126,7 +126,7 @@ run_tests() {
         fi
 
         # Try to connect
-        if curl -s http://localhost:5000/looper >/dev/null 2>&1; then
+        if curl -s http://localhost:5000/api/looper >/dev/null 2>&1; then
             echo " ready!"
             break
         fi
@@ -144,7 +144,7 @@ run_tests() {
     fi
 
     # Verify debug mode is enabled
-    DEBUG_MODE=$(curl -s http://localhost:5000/looper | grep -o '"debug_mode":true' || echo "")
+    DEBUG_MODE=$(curl -s http://localhost:5000/api/looper | grep -o '"debug_mode":true' || echo "")
     if [[ -z "$DEBUG_MODE" ]]; then
         echo "Error: Server is not in debug mode"
         echo "Server log:"

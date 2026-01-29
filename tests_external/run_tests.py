@@ -29,7 +29,7 @@ def wait_for_server(url: str, timeout: float = 30.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            response = requests.get(f"{url}/looper", timeout=2.0)
+            response = requests.get(f"{url}/api/looper", timeout=2.0)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("debug_mode"):

@@ -79,13 +79,13 @@ Key properties:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/modes` | List available animation modes |
-| `/modes/current` | Get/set current mode |
-| `/brightness` | Get/set LED brightness |
-| `/delay` | Get/set animation speed |
-| `/opts` | Get/set mode-specific options (colors, etc.) |
-| `/strips` | Get strip configuration |
-| `/looper` | Control animation loop (debug mode only) |
+| `/api/modes` | List available animation modes |
+| `/api/modes/current` | Get/set current mode |
+| `/api/brightness` | Get/set LED brightness |
+| `/api/delay` | Get/set animation speed |
+| `/api/opts` | Get/set mode-specific options (colors, etc.) |
+| `/api/strips` | Get strip configuration |
+| `/api/looper` | Control animation loop (debug mode only) |
 
 ## Animation Modes
 

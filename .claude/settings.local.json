@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(source:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(pip install:*)",
+      "Bash(pytest:*)",
+      "Bash(pkill:*)",
+      "Bash(python3:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(./scripts/run-tests.sh:*)",
+      "Bash(pgrep:*)",
+      "Bash(lsof:*)",
+      "Bash(chmod:*)",
+      "Bash(bash -n:*)",
+      "Bash(cargo check:*)"
+    ]
+  }
+}

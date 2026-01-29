@@ -1,8 +1,9 @@
+import os
 import looper as loop
 import fan_ctrl as fan
-from flask import Flask, request, json, jsonify, redirect
+from flask import Flask, request, json, jsonify, send_from_directory
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 app.config.from_object(__name__)
 app.url_map.strict_slashes = False
 
@@ -43,7 +44,7 @@ def _process_opts_from_request(new_opts, orig_opts):
 
 @app.route("/")
 def hello_world():
-    return redirect("/static/index.html")
+    return send_from_directory('static', 'index.html')
 
 
 @app.route("/fanbuttons/<string:btn_id>")
@@ -53,29 +54,29 @@ def fan_buttons(btn_id):
     return jsonify({"msg": "error"}, 400)
 
 
-@app.route("/modes", methods=["GET"])
+@app.route("/api/modes", methods=["GET"])
 def modes():
     return json.dumps(list(loop.get_modes().keys()))
 
 
-@app.route("/modes/current", methods=["GET", "POST"])
+@app.route("/api/modes/current", methods=["GET", "POST"])
 def current_mode():
     return simple_get_set(request, "mode", loop.get_current_mode, loop.set_mode)
 
 
-@app.route("/brightness", methods=["GET", "POST"])
+@app.route("/api/brightness", methods=["GET", "POST"])
 def brightness():
     return simple_get_set(
         request, "brightness", loop.get_brightness, loop.set_brightness
     )
 
 
-@app.route("/delay", methods=["GET", "POST"])
+@app.route("/api/delay", methods=["GET", "POST"])
 def delay():
     return simple_get_set(request, "delay", loop.get_delay, loop.set_delay)
 
 
-@app.route("/opts", methods=["GET", "POST"])
+@app.route("/api/opts", methods=["GET", "POST"])
 def opts():
     if request.method == "POST":
         orig_opts = loop.get_opts()
@@ -87,13 +88,13 @@ def opts():
     return jsonify({"opts": _process_opts_for_response(current_opts)})
 
 
-@app.route("/strips", methods=["GET"])
+@app.route("/api/strips", methods=["GET"])
 def strips():
     """Return information about configured LED strips with per-strip state."""
     return jsonify({"strips": loop.get_strips()})
 
 
-@app.route("/strips/<int:strip_id>", methods=["POST"])
+@app.route("/api/strips/<int:strip_id>", methods=["POST"])
 def configure_strip(strip_id):
     """Configure a strip's network settings (debug mode only).
 
@@ -113,7 +114,7 @@ def configure_strip(strip_id):
 # --- Per-strip endpoints ---
 
 
-@app.route("/strips/<int:strip_id>/mode", methods=["GET", "POST"])
+@app.route("/api/strips/<int:strip_id>/mode", methods=["GET", "POST"])
 def strip_mode(strip_id):
     """Get or set mode for a specific strip."""
     if request.method == "POST":
@@ -133,7 +134,7 @@ def strip_mode(strip_id):
         return jsonify({"mode": result})
 
 
-@app.route("/strips/<int:strip_id>/brightness", methods=["GET", "POST"])
+@app.route("/api/strips/<int:strip_id>/brightness", methods=["GET", "POST"])
 def strip_brightness(strip_id):
     """Get or set brightness for a specific strip."""
     if request.method == "POST":
@@ -150,7 +151,7 @@ def strip_brightness(strip_id):
         return jsonify({"brightness": result})
 
 
-@app.route("/strips/<int:strip_id>/delay", methods=["GET", "POST"])
+@app.route("/api/strips/<int:strip_id>/delay", methods=["GET", "POST"])
 def strip_delay(strip_id):
     """Get or set delay for a specific strip."""
     if request.method == "POST":
@@ -167,7 +168,7 @@ def strip_delay(strip_id):
         return jsonify({"delay": result})
 
 
-@app.route("/strips/<int:strip_id>/opts", methods=["GET", "POST"])
+@app.route("/api/strips/<int:strip_id>/opts", methods=["GET", "POST"])
 def strip_opts(strip_id):
     """Get or set options for a specific strip."""
     if request.method == "POST":
@@ -185,7 +186,7 @@ def strip_opts(strip_id):
         return jsonify({"opts": _process_opts_for_response(result)})
 
 
-@app.route("/looper", methods=["GET", "POST"])
+@app.route("/api/looper", methods=["GET", "POST"])
 def looper():
     """Control the animation loop (debug mode only).
 

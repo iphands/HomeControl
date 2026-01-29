@@ -58,7 +58,7 @@ The server must be running with `--debug` flag for tests to work. This enables:
 - **Step mode**: Run specific number of iterations
 - **Deterministic testing**: Control exactly when packets are sent
 
-Without debug mode, the `/looper` endpoint returns an error.
+Without debug mode, the `/api/looper` endpoint returns an error.
 
 ## Test Structure
 
