@@ -312,10 +312,16 @@ class Sparkle(Mode):
     def get_arr(self):
         if self.opts.r_on.val:
             self.arr[0] = randint(self.opts.low.val, self.opts.high.val)
+        else:
+            self.arr[0] = 0
         if self.opts.g_on.val:
             self.arr[1] = randint(self.opts.low.val, self.opts.high.val)
+        else:
+            self.arr[1] = 0
         if self.opts.b_on.val:
             self.arr[2] = randint(self.opts.low.val, self.opts.high.val)
+        else:
+            self.arr[2] = 0
         return self.arr
 
     def update(self):

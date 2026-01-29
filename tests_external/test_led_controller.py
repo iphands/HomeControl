@@ -369,5 +369,523 @@ class TestMultipleStrips:
         api.resume_looper()
 
 
+def _clear_strip_state(api, esp32_strip, extra_iterations=5):
+    """Helper to clear residual LED state by running Off mode.
+
+    This ensures LED buffers are zeroed out and any in-flight packets are drained.
+    """
+    esp32_strip.clear_packets()
+    api.set_mode("Off")
+    api.step_looper(extra_iterations)
+    time.sleep(0.8)
+    esp32_strip.clear_packets()
+    time.sleep(0.2)
+
+
+class TestSparkleMode:
+    """Comprehensive tests for the Sparkle animation mode."""
+
+    def test_sparkle_mode_can_be_set(self, api):
+        """Verify Sparkle mode can be activated."""
+        original_mode = api.get_current_mode()
+
+        api.set_mode("Sparkle")
+        assert api.get_current_mode() == "Sparkle"
+
+        api.set_mode(original_mode)
+
+    def test_sparkle_has_default_opts(self, api):
+        """Verify Sparkle mode has expected default options."""
+        original_mode = api.get_current_mode()
+
+        api.set_mode("Sparkle")
+        opts = api.get_opts()
+
+        # Check all expected options exist
+        assert "low" in opts
+        assert "high" in opts
+        assert "r_on" in opts
+        assert "g_on" in opts
+        assert "b_on" in opts
+        assert "decay" in opts
+
+        # Check default values
+        assert opts["low"]["val"] == 0
+        assert opts["high"]["val"] == 255
+        assert opts["r_on"]["val"] is True
+        assert opts["g_on"]["val"] is False
+        assert opts["b_on"]["val"] is True
+        assert abs(opts["decay"]["val"] - 0.92) < 0.01
+
+        api.set_mode(original_mode)
+
+    def test_sparkle_produces_lit_leds(self, api, esp32_strip1):
+        """Verify Sparkle mode produces some lit LEDs over time."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+
+        api.set_mode("Sparkle")
+        # Set high minimum value to ensure visible sparkles
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 100, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+            "decay": {"val": 0.9, "type": "float"},
+        })
+
+        # Run several iterations to allow sparkles to appear
+        api.step_looper(30)
+        time.sleep(2.5)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        # At least some packets should have lit LEDs (sparkles)
+        packets_with_lit = [p for p in packets if p.has_any_lit()]
+        assert len(packets_with_lit) > 0, "Sparkle mode should produce some lit LEDs"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_red_blue_channels_only_by_default(self, api, esp32_strip1):
+        """Verify default Sparkle only uses red and blue channels (not green)."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+
+        # Clear state first
+        _clear_strip_state(api, esp32_strip1)
+
+        api.set_mode("Sparkle")
+        # Ensure default opts (r_on=True, g_on=False, b_on=True)
+        # NOTE: Server expects string "true"/"false" for bool values
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "false", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 100, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+        })
+
+        # Run enough iterations to get sparkles
+        api.step_looper(50)
+        time.sleep(3.0)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        # Check that green channel is always 0 for lit LEDs
+        green_values_found = []
+        for packet in packets:
+            for i in range(packet.num_leds):
+                led = packet.get_led(i)
+                if led and (led[0] > 0 or led[2] > 0):
+                    green_values_found.append(led[1])
+
+        if green_values_found:
+            max_green = max(green_values_found)
+            assert max_green < 10, f"Green channel should be off, but found max green={max_green}"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_green_only_mode(self, api, esp32_strip1):
+        """Verify Sparkle can be configured for green channel only."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+
+        # Clear state thoroughly
+        _clear_strip_state(api, esp32_strip1, extra_iterations=10)
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "false", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "false", "type": "bool"},
+            "low": {"val": 100, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+            "decay": {"val": 0.5, "type": "float"},  # Fast decay to clear any residual
+        })
+
+        # Run more iterations to stabilize state
+        api.step_looper(60)
+        time.sleep(4.0)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        # Only look at the latter half of packets (after state has stabilized)
+        stable_packets = packets[len(packets)//2:]
+
+        # Find LEDs that have green > 50 (clear green sparkles)
+        # Verify red and blue are near zero for these green sparkles
+        green_sparkles = []
+        for packet in stable_packets:
+            for i in range(packet.num_leds):
+                led = packet.get_led(i)
+                if led and led[1] > 50:  # Has significant green
+                    green_sparkles.append(led)
+
+        # We should have found some green sparkles
+        assert len(green_sparkles) > 0, "Should find LEDs with green values in green-only mode"
+
+        # Verify red and blue are minimal for green sparkles
+        for led in green_sparkles:
+            r, g, b = led
+            assert r < 20, f"Red should be minimal in green-only mode, got {r}"
+            assert b < 20, f"Blue should be minimal in green-only mode, got {b}"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_low_high_range(self, api, esp32_strip1):
+        """Verify sparkle values respect low/high range settings."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+
+        # Clear state first
+        _clear_strip_state(api, esp32_strip1)
+
+        api.set_mode("Sparkle")
+        # Set a narrow range - values should be between 100-150
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 100, "type": "int"},
+            "high": {"val": 150, "type": "int"},
+            "decay": {"val": 1.0, "type": "float"},
+        })
+
+        api.step_looper(30)
+        time.sleep(2.0)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        max_value_found = 0
+        min_nonzero_value = 255
+
+        for packet in packets:
+            for i in range(packet.num_leds):
+                led = packet.get_led(i)
+                if led:
+                    for channel_val in led:
+                        if channel_val > 0:
+                            max_value_found = max(max_value_found, channel_val)
+                            min_nonzero_value = min(min_nonzero_value, channel_val)
+
+        if max_value_found > 0:
+            assert max_value_found <= 150, f"Max value {max_value_found} exceeds high=150"
+            assert min_nonzero_value >= 100, f"Min value {min_nonzero_value} below low=100"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_decay_reduces_brightness(self, api, esp32_strip1):
+        """Verify decay option causes LED values to decrease over time."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 200, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+            "decay": {"val": 0.5, "type": "float"},
+        })
+
+        api.step_looper(30)
+        time.sleep(2.5)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) >= 5, f"Expected at least 5 packets, got {len(packets)}"
+
+        values_below_minimum = []
+        for packet in packets:
+            for i in range(packet.num_leds):
+                led = packet.get_led(i)
+                if led:
+                    for val in led:
+                        if 0 < val < 200:
+                            values_below_minimum.append(val)
+
+        assert len(values_below_minimum) > 0, (
+            "Decay should produce values below the minimum sparkle value (200)"
+        )
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_no_decay_preserves_values(self, api, esp32_strip1):
+        """Verify decay=1.0 preserves LED values (no fading)."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+
+        # Clear state first to avoid residual values
+        _clear_strip_state(api, esp32_strip1)
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "false", "type": "bool"},
+            "b_on": {"val": "false", "type": "bool"},
+            "low": {"val": 100, "type": "int"},
+            "high": {"val": 100, "type": "int"},
+            "decay": {"val": 1.0, "type": "float"},
+        })
+
+        api.step_looper(20)
+        time.sleep(1.5)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        for packet in packets:
+            for i in range(packet.num_leds):
+                led = packet.get_led(i)
+                if led and led[0] > 0:
+                    assert led[0] == 100, f"Red value should be exactly 100 with no decay, got {led[0]}"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_sparseness(self, api, esp32_strip1):
+        """Verify sparkles are sparse (not all LEDs lit every frame)."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 200, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+            "decay": {"val": 0.1, "type": "float"},
+        })
+
+        api.step_looper(10)
+        time.sleep(1.5)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        frames_with_all_lit = 0
+        total_frames = len(packets)
+
+        for packet in packets:
+            lit_count = packet.count_lit()
+            if lit_count == packet.num_leds:
+                frames_with_all_lit += 1
+
+        assert frames_with_all_lit < total_frames, (
+            "Sparkle should be sparse - not all LEDs lit every frame"
+        )
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_all_channels_on(self, api, esp32_strip1):
+        """Verify all RGB channels can be enabled together and produce varied colors."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+
+        # Clear state first
+        _clear_strip_state(api, esp32_strip1)
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 100, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+            "decay": {"val": 0.95, "type": "float"},
+        })
+
+        # Run more iterations to increase chance of finding RGB LEDs
+        api.step_looper(100)
+        time.sleep(5.0)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        # With all channels on, we should see LEDs with non-zero values in each channel
+        # Due to random sparkle timing, they may not all be >50 at once
+        # Instead verify we see activity in all three channels across all packets
+        found_r = False
+        found_g = False
+        found_b = False
+        for packet in packets:
+            for i in range(packet.num_leds):
+                led = packet.get_led(i)
+                if led:
+                    if led[0] > 50:
+                        found_r = True
+                    if led[1] > 50:
+                        found_g = True
+                    if led[2] > 50:
+                        found_b = True
+
+        assert found_r, "With all channels on, should find LEDs with red values"
+        assert found_g, "With all channels on, should find LEDs with green values"
+        assert found_b, "With all channels on, should find LEDs with blue values"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_all_channels_off_produces_dark(self, api, esp32_strip1):
+        """Verify all channels off with zero decay causes LEDs to go dark."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+
+        # Clear state thoroughly
+        _clear_strip_state(api, esp32_strip1, extra_iterations=10)
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "false", "type": "bool"},
+            "g_on": {"val": "false", "type": "bool"},
+            "b_on": {"val": "false", "type": "bool"},
+            "decay": {"val": 0.0, "type": "float"},
+        })
+
+        # Run enough iterations to ensure state has settled
+        api.step_looper(20)
+        time.sleep(2.0)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        # With decay=0 and no channels on, the latter packets should be all dark
+        # Check only the last few packets (after any residual state has decayed)
+        final_packets = packets[-5:] if len(packets) >= 5 else packets
+
+        for packet in final_packets:
+            assert not packet.has_any_lit(), (
+                f"All channels off with decay=0 should produce dark LEDs, "
+                f"but found {packet.count_lit()} lit LEDs"
+            )
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_multi_strip_sync(self, api, esp32_strip1, esp32_strip2):
+        """Verify both strips receive Sparkle mode packets."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+        esp32_strip2.clear_packets()
+
+        api.set_mode("Sparkle")
+
+        api.step_looper(10)
+        time.sleep(1.5)
+
+        packets1 = esp32_strip1.get_all_packets()
+        packets2 = esp32_strip2.get_all_packets()
+
+        assert len(packets1) > 0, "Strip 1 should receive Sparkle packets"
+        assert len(packets2) > 0, "Strip 2 should receive Sparkle packets"
+
+        for p in packets1:
+            assert p.num_leds == STRIP_1_LEDS
+        for p in packets2:
+            assert p.num_leds == STRIP_2_LEDS
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+    def test_sparkle_opts_persistence(self, api):
+        """Verify Sparkle options persist after being set."""
+        original_mode = api.get_current_mode()
+
+        api.set_mode("Sparkle")
+
+        # Set custom options using string "true"/"false" for bools
+        api.set_opts({
+            "low": {"val": 50, "type": "int"},
+            "high": {"val": 200, "type": "int"},
+            "r_on": {"val": "false", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "decay": {"val": 0.85, "type": "float"},
+        })
+
+        # Read back and verify
+        opts = api.get_opts()
+        assert opts["low"]["val"] == 50
+        assert opts["high"]["val"] == 200
+        assert opts["r_on"]["val"] is False
+        assert opts["g_on"]["val"] is True
+        assert opts["b_on"]["val"] is True
+        assert abs(opts["decay"]["val"] - 0.85) < 0.01
+
+        api.set_mode(original_mode)
+
+    def test_sparkle_zero_decay_accumulates(self, api, esp32_strip1):
+        """Verify decay=0 causes rapid fade to black."""
+        original_mode = api.get_current_mode()
+
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+
+        api.set_mode("Sparkle")
+        api.set_opts({
+            "r_on": {"val": "true", "type": "bool"},
+            "g_on": {"val": "true", "type": "bool"},
+            "b_on": {"val": "true", "type": "bool"},
+            "low": {"val": 255, "type": "int"},
+            "high": {"val": 255, "type": "int"},
+            "decay": {"val": 0.0, "type": "float"},
+        })
+
+        api.step_looper(20)
+        time.sleep(1.5)
+
+        packets = esp32_strip1.get_all_packets()
+        assert len(packets) > 0, "No packets received"
+
+        total_lit_ratio = []
+        for packet in packets:
+            lit = packet.count_lit()
+            total_lit_ratio.append(lit / packet.num_leds)
+
+        avg_lit_ratio = sum(total_lit_ratio) / len(total_lit_ratio) if total_lit_ratio else 0
+
+        assert avg_lit_ratio < 0.3, f"With decay=0, most LEDs should be dark, got {avg_lit_ratio:.2%} lit"
+
+        api.set_mode(original_mode)
+        api.resume_looper()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
