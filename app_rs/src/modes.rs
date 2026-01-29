@@ -30,7 +30,7 @@ impl Mode for RainbowCycle {
     fn name(&self) -> &str {
         "RainbowCycle"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         for x in 0..strip.num_leds {
             strip.set_led_arr(x, self.colors[x]);
@@ -40,11 +40,11 @@ impl Mode for RainbowCycle {
         let last = self.colors.pop().unwrap();
         self.colors.insert(0, last);
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         HashMap::new()
     }
-    
+
     fn set_opts(&mut self, _opts: HashMap<String, OptValue>) {}
 }
 
@@ -61,24 +61,23 @@ impl NightRider {
         opts.insert("tail_color".to_string(), OptValue::create_color(colors::BLUE));
         opts.insert("fade".to_string(), OptValue::create_bool(true));
         opts.insert("fill_color".to_string(), OptValue::create_color(colors::BLACK));
-        
+
         Self {
             opts,
             counter: 0,
             direction: 1,
         }
     }
-    
+
     fn get_color_opt(&self, key: &str) -> [u8; 3] {
-        self.opts.get(key)
+        self.opts
+            .get(key)
             .and_then(|v| parse_color(&v.value))
             .unwrap_or(colors::BLACK)
     }
-    
+
     fn get_bool_opt(&self, key: &str) -> bool {
-        self.opts.get(key)
-            .and_then(|v| v.value.as_bool())
-            .unwrap_or(false)
+        self.opts.get(key).and_then(|v| v.value.as_bool()).unwrap_or(false)
     }
 }
 
@@ -86,20 +85,20 @@ impl Mode for NightRider {
     fn name(&self) -> &str {
         "NightRider"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         let fill_color = self.get_color_opt("fill_color");
         let fade = self.get_bool_opt("fade");
-        
+
         if !fade {
             for x in 0..strip.num_leds {
                 strip.set_led_arr(x, fill_color);
             }
         }
-        
+
         let color = self.get_color_opt("color");
         let tail_color = self.get_color_opt("tail_color");
-        
+
         for x in 0..strip.num_leds {
             if self.counter == x as isize {
                 strip.set_led_arr(x, color);
@@ -115,7 +114,7 @@ impl Mode for NightRider {
                 }
             }
         }
-        
+
         self.counter += self.direction;
         if self.counter >= strip.num_leds as isize {
             self.counter = strip.num_leds as isize - 1;
@@ -125,14 +124,14 @@ impl Mode for NightRider {
             self.counter = 1;
             self.direction = 1;
         }
-        
+
         strip.send();
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         self.opts.clone()
     }
-    
+
     fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
         for (key, val) in opts {
             if self.opts.contains_key(&key) {
@@ -158,7 +157,7 @@ impl Collider {
         opts.insert("color_a".to_string(), OptValue::create_color(colors::PURPLE));
         opts.insert("color_b".to_string(), OptValue::create_color(colors::BLUE));
         opts.insert("collision_decay".to_string(), OptValue::create_int(7));
-        
+
         Self {
             opts,
             counter_a: 0,
@@ -169,29 +168,28 @@ impl Collider {
             collision_stren: 100,
         }
     }
-    
+
     fn get_color_opt(&self, key: &str) -> [u8; 3] {
-        self.opts.get(key)
+        self.opts
+            .get(key)
             .and_then(|v| parse_color(&v.value))
             .unwrap_or(colors::BLACK)
     }
-    
+
     fn get_int_opt(&self, key: &str) -> i64 {
-        self.opts.get(key)
-            .and_then(|v| v.value.as_i64())
-            .unwrap_or(0)
+        self.opts.get(key).and_then(|v| v.value.as_i64()).unwrap_or(0)
     }
-    
+
     fn _update(&mut self, strip: &mut Strip, counter: isize, direction: isize, color: [u8; 3]) -> (isize, isize) {
         for x in 0..strip.num_leds {
             if counter == x as isize {
                 strip.set_led_arr(x, color);
             }
         }
-        
+
         let mut new_counter = counter + direction;
         let mut new_direction = direction;
-        
+
         if new_counter >= strip.num_leds as isize {
             new_counter = strip.num_leds as isize;
             new_direction = -1;
@@ -200,7 +198,7 @@ impl Collider {
             new_counter = 1;
             new_direction = 1;
         }
-        
+
         (new_counter, new_direction)
     }
 }
@@ -209,10 +207,10 @@ impl Mode for Collider {
     fn name(&self) -> &str {
         "Collider"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         strip.solid(colors::BLACK);
-        
+
         if !self.collision.is_empty() {
             let stren = self.collision_stren as f64 / 100.0;
             let color = [
@@ -229,31 +227,31 @@ impl Mode for Collider {
                 self.collision_stren = 100;
             }
         }
-        
+
         let color_a = self.get_color_opt("color_a");
         let color_b = self.get_color_opt("color_b");
-        
+
         let (ca, da) = self._update(strip, self.counter_a, self.direction_a, color_a);
         self.counter_a = ca;
         self.direction_a = da;
-        
+
         let (cb, db) = self._update(strip, self.counter_b, self.direction_b, color_b);
         self.counter_b = cb;
         self.direction_b = db;
-        
+
         if self.counter_a >= self.counter_b {
             self.direction_a *= -1;
             self.direction_b *= -1;
             self.collision = vec![self.counter_a as usize, self.counter_b as usize];
         }
-        
+
         strip.send();
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         self.opts.clone()
     }
-    
+
     fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
         for (key, val) in opts {
             if self.opts.contains_key(&key) {
@@ -281,23 +279,23 @@ impl Mode for Christmas {
     fn name(&self) -> &str {
         "Christmas"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         if (self.arr.len() + strip.num_leds) % 2 == 0 {
             self.pool_idx = (self.pool_idx + 1) % self.arr.len();
         }
-        
+
         for x in 0..strip.num_leds {
             strip.set_led_arr(x, self.arr[self.pool_idx]);
             self.pool_idx = (self.pool_idx + 1) % self.arr.len();
         }
         strip.send();
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         HashMap::new()
     }
-    
+
     fn set_opts(&mut self, _opts: HashMap<String, OptValue>) {}
 }
 
@@ -319,23 +317,23 @@ impl Mode for MardiGras {
     fn name(&self) -> &str {
         "MardiGras"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         if (self.arr.len() + strip.num_leds) % 2 == 0 {
             self.pool_idx = (self.pool_idx + 1) % self.arr.len();
         }
-        
+
         for x in 0..strip.num_leds {
             strip.set_led_arr(x, self.arr[self.pool_idx]);
             self.pool_idx = (self.pool_idx + 1) % self.arr.len();
         }
         strip.send();
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         HashMap::new()
     }
-    
+
     fn set_opts(&mut self, _opts: HashMap<String, OptValue>) {}
 }
 
@@ -357,23 +355,23 @@ impl Mode for ArrGeeBee {
     fn name(&self) -> &str {
         "ArrGeeBee"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         if (self.arr.len() + strip.num_leds) % 2 == 0 {
             self.pool_idx = (self.pool_idx + 1) % self.arr.len();
         }
-        
+
         for x in 0..strip.num_leds {
             strip.set_led_arr(x, self.arr[self.pool_idx]);
             self.pool_idx = (self.pool_idx + 1) % self.arr.len();
         }
         strip.send();
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         HashMap::new()
     }
-    
+
     fn set_opts(&mut self, _opts: HashMap<String, OptValue>) {}
 }
 
@@ -391,43 +389,31 @@ impl Sparkle {
         opts.insert("g_on".to_string(), OptValue::create_bool(false));
         opts.insert("b_on".to_string(), OptValue::create_bool(true));
         opts.insert("decay".to_string(), OptValue::create_float(0.92));
-        
-        Self {
-            opts,
-            arr: [0, 0, 0],
-        }
+
+        Self { opts, arr: [0, 0, 0] }
     }
-    
+
     fn get_int_opt(&self, key: &str) -> i64 {
-        self.opts.get(key)
-            .and_then(|v| v.value.as_i64())
-            .unwrap_or(0)
+        self.opts.get(key).and_then(|v| v.value.as_i64()).unwrap_or(0)
     }
-    
+
     fn get_bool_opt(&self, key: &str) -> bool {
-        self.opts.get(key)
-            .and_then(|v| v.value.as_bool())
-            .unwrap_or(false)
+        self.opts.get(key).and_then(|v| v.value.as_bool()).unwrap_or(false)
     }
-    
+
     fn get_float_opt(&self, key: &str) -> f64 {
-        self.opts.get(key)
-            .and_then(|v| v.value.as_f64())
-            .unwrap_or(0.0)
+        self.opts.get(key).and_then(|v| v.value.as_f64()).unwrap_or(0.0)
     }
-    
+
     fn get_arr(&mut self) -> [u8; 3] {
         use std::time::{SystemTime, UNIX_EPOCH};
-        
+
         // Simple RNG using timestamp
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u64;
-        
+        let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+
         let low = self.get_int_opt("low") as u8;
         let high = self.get_int_opt("high") as u8;
-        
+
         if self.get_bool_opt("r_on") {
             self.arr[0] = (seed % ((high - low + 1) as u64)) as u8 + low;
         } else {
@@ -443,7 +429,7 @@ impl Sparkle {
         } else {
             self.arr[2] = 0;
         }
-        
+
         self.arr
     }
 }
@@ -452,38 +438,38 @@ impl Mode for Sparkle {
     fn name(&self) -> &str {
         "Sparkle"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         let decay = self.get_float_opt("decay");
         let threshold = strip.num_leds * 3;
-        
+
         for x in 0..strip.num_leds {
             // Simple pseudo-random
             use std::time::{SystemTime, UNIX_EPOCH};
-            let seed = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
-            
+            let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+
             if (seed + x as u64) % (threshold as u64 + 1) == 0 {
                 strip.set_led_arr(x, self.get_arr());
             } else {
                 if let Some(rgb) = strip.get_led(x) {
-                    strip.set_led_arr(x, [
-                        (rgb[0] as f64 * decay) as u8,
-                        (rgb[1] as f64 * decay) as u8,
-                        (rgb[2] as f64 * decay) as u8,
-                    ]);
+                    strip.set_led_arr(
+                        x,
+                        [
+                            (rgb[0] as f64 * decay) as u8,
+                            (rgb[1] as f64 * decay) as u8,
+                            (rgb[2] as f64 * decay) as u8,
+                        ],
+                    );
                 }
             }
         }
         strip.send();
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         self.opts.clone()
     }
-    
+
     fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
         for (key, val) in opts {
             if self.opts.contains_key(&key) {
@@ -507,18 +493,16 @@ impl Breathe {
         opts.insert("b".to_string(), OptValue::create_int(255));
         opts.insert("low".to_string(), OptValue::create_int(0));
         opts.insert("high".to_string(), OptValue::create_int(255));
-        
+
         Self {
             opts,
             counter: 0,
             direction: 1,
         }
     }
-    
+
     fn get_int_opt(&self, key: &str) -> i64 {
-        self.opts.get(key)
-            .and_then(|v| v.value.as_i64())
-            .unwrap_or(0)
+        self.opts.get(key).and_then(|v| v.value.as_i64()).unwrap_or(0)
     }
 }
 
@@ -526,17 +510,17 @@ impl Mode for Breathe {
     fn name(&self) -> &str {
         "Breathe"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         let r = self.get_int_opt("r") as u8;
         let g = self.get_int_opt("g") as u8;
         let b = self.get_int_opt("b") as u8;
         let low = self.get_int_opt("low");
         let high = self.get_int_opt("high");
-        
+
         strip.set_brightness(self.counter as u8);
         strip.solid([r, g, b]);
-        
+
         if self.counter >= high {
             self.direction = -1;
         } else if self.counter <= low {
@@ -544,11 +528,11 @@ impl Mode for Breathe {
         }
         self.counter += self.direction;
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         self.opts.clone()
     }
-    
+
     fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
         for (key, val) in opts {
             if self.opts.contains_key(&key) {
@@ -566,12 +550,13 @@ impl Solid {
     pub fn new() -> Self {
         let mut opts = HashMap::new();
         opts.insert("color".to_string(), OptValue::create_color(colors::YELLOW));
-        
+
         Self { opts }
     }
-    
+
     fn get_color_opt(&self, key: &str) -> [u8; 3] {
-        self.opts.get(key)
+        self.opts
+            .get(key)
             .and_then(|v| parse_color(&v.value))
             .unwrap_or(colors::BLACK)
     }
@@ -581,16 +566,16 @@ impl Mode for Solid {
     fn name(&self) -> &str {
         "Solid"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         let color = self.get_color_opt("color");
         strip.solid(color);
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         self.opts.clone()
     }
-    
+
     fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
         for (key, val) in opts {
             if self.opts.contains_key(&key) {
@@ -598,7 +583,7 @@ impl Mode for Solid {
             }
         }
     }
-    
+
     fn load_cb(&mut self, set_delay: &dyn Fn(f64)) {
         set_delay(0.250);
     }
@@ -616,17 +601,17 @@ impl Mode for White {
     fn name(&self) -> &str {
         "White"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         strip.solid([255, 255, 255]);
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         HashMap::new()
     }
-    
+
     fn set_opts(&mut self, _opts: HashMap<String, OptValue>) {}
-    
+
     fn load_cb(&mut self, set_delay: &dyn Fn(f64)) {
         set_delay(0.250);
     }
@@ -644,17 +629,17 @@ impl Mode for Off {
     fn name(&self) -> &str {
         "Off"
     }
-    
+
     fn update(&mut self, strip: &mut Strip) {
         strip.solid(colors::BLACK);
     }
-    
+
     fn get_opts(&self) -> HashMap<String, OptValue> {
         HashMap::new()
     }
-    
+
     fn set_opts(&mut self, _opts: HashMap<String, OptValue>) {}
-    
+
     fn load_cb(&mut self, set_delay: &dyn Fn(f64)) {
         set_delay(0.250);
     }

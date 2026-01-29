@@ -90,10 +90,7 @@ async fn get_current_mode(data: web::Data<AppState>) -> HttpResponse {
     })
 }
 
-async fn set_current_mode(
-    data: web::Data<AppState>,
-    req: web::Json<SetModeRequest>,
-) -> HttpResponse {
+async fn set_current_mode(data: web::Data<AppState>, req: web::Json<SetModeRequest>) -> HttpResponse {
     let mut state = data.looper_state.lock().unwrap();
     state.set_mode(&req.mode);
     HttpResponse::Ok().json(ModeResponse {
@@ -108,10 +105,7 @@ async fn get_brightness(data: web::Data<AppState>) -> HttpResponse {
     })
 }
 
-async fn set_brightness(
-    data: web::Data<AppState>,
-    req: web::Json<SetBrightnessRequest>,
-) -> HttpResponse {
+async fn set_brightness(data: web::Data<AppState>, req: web::Json<SetBrightnessRequest>) -> HttpResponse {
     let mut state = data.looper_state.lock().unwrap();
     state.set_brightness(req.brightness);
     HttpResponse::Ok().json(BrightnessResponse {
@@ -121,26 +115,19 @@ async fn set_brightness(
 
 async fn get_delay(data: web::Data<AppState>) -> HttpResponse {
     let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(DelayResponse {
-        delay: state.delay,
-    })
+    HttpResponse::Ok().json(DelayResponse { delay: state.delay })
 }
 
-async fn set_delay(
-    data: web::Data<AppState>,
-    req: web::Json<SetDelayRequest>,
-) -> HttpResponse {
+async fn set_delay(data: web::Data<AppState>, req: web::Json<SetDelayRequest>) -> HttpResponse {
     let mut state = data.looper_state.lock().unwrap();
     state.delay = req.delay;
-    HttpResponse::Ok().json(DelayResponse {
-        delay: state.delay,
-    })
+    HttpResponse::Ok().json(DelayResponse { delay: state.delay })
 }
 
 async fn get_opts(data: web::Data<AppState>) -> HttpResponse {
     let state = data.looper_state.lock().unwrap();
     let opts = state.get_opts();
-    
+
     // Convert color arrays to hex strings for response
     let mut response_opts: HashMap<String, OptValue> = HashMap::new();
     for (key, opt) in opts {
@@ -159,16 +146,13 @@ async fn get_opts(data: web::Data<AppState>) -> HttpResponse {
         };
         response_opts.insert(key, converted_opt);
     }
-    
+
     HttpResponse::Ok().json(OptsResponse { opts: response_opts })
 }
 
-async fn set_opts(
-    data: web::Data<AppState>,
-    req: web::Json<HashMap<String, OptValue>>,
-) -> HttpResponse {
+async fn set_opts(data: web::Data<AppState>, req: web::Json<HashMap<String, OptValue>>) -> HttpResponse {
     let mut opts = req.0.clone();
-    
+
     // Parse color values
     for (_, opt) in opts.iter_mut() {
         if opt.type_name == "bool" {
@@ -199,10 +183,10 @@ async fn set_opts(
             }
         }
     }
-    
+
     let mut state = data.looper_state.lock().unwrap();
     state.set_opts(opts);
-    
+
     // Get updated opts and convert colors back to hex
     let current_opts = state.get_opts();
     let mut response_opts: HashMap<String, OptValue> = HashMap::new();
@@ -222,7 +206,7 @@ async fn set_opts(
         };
         response_opts.insert(key, converted_opt);
     }
-    
+
     HttpResponse::Ok().json(OptsResponse { opts: response_opts })
 }
 
@@ -240,7 +224,7 @@ async fn configure_strip(
 ) -> HttpResponse {
     let strip_id = path.into_inner();
     let mut state = data.looper_state.lock().unwrap();
-    
+
     match state.configure_strip(strip_id, req.hostname.clone(), req.port) {
         Ok(info) => HttpResponse::Ok().json(StripConfigResponse { info }),
         Err(e) => HttpResponse::Ok().json(ErrorResponse { error: e }),
@@ -252,10 +236,7 @@ async fn get_looper_state(data: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(state.get_loop_state())
 }
 
-async fn control_looper(
-    data: web::Data<AppState>,
-    req: web::Json<LoopControlRequest>,
-) -> HttpResponse {
+async fn control_looper(data: web::Data<AppState>, req: web::Json<LoopControlRequest>) -> HttpResponse {
     let mut state = data.looper_state.lock().unwrap();
     let result = state.loop_control(req.iterations, req.next_state.clone());
     HttpResponse::Ok().json(result)
@@ -271,7 +252,7 @@ pub async fn start_server(looper: Looper) -> std::io::Result<()> {
     let app_state = web::Data::new(AppState {
         looper_state: looper.get_state(),
     });
-    
+
     // Get the project root and static directory path
     let static_dir = std::env::current_dir()
         .ok()
@@ -285,7 +266,7 @@ pub async fn start_server(looper: Looper) -> std::io::Result<()> {
             }
         })
         .unwrap_or_else(|| std::path::PathBuf::from("../app/static"));
-    
+
     HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
