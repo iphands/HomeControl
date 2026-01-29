@@ -136,3 +136,100 @@ When rewriting:
 - Do NOT add Co-Authored-By lines mentioning Claude or AI
 - Do NOT mention Claude or AI assistance in commit messages
 - Use the existing commit message style with prefixes like `[rs]`, `[test]`, `[feature]`, etc.
+
+## Build/Test/Lint Commands
+
+### Rust (app_rs/)
+```bash
+# Build
+cd app_rs && cargo build
+cd app_rs && cargo build --release
+
+# Run
+cd app_rs && cargo run
+cd app_rs && cargo run -- --debug
+
+# Check/Lint
+cd app_rs && cargo check
+cd app_rs && cargo clippy
+
+# Format
+cd app_rs && rustfmt $(find src -name '*.rs')
+# or use: ./scripts/format.sh
+```
+
+### Python (app/)
+```bash
+# Setup virtualenv
+python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+
+# Run (from repo root)
+source venv/bin/activate && cd app && python -m __init__
+source venv/bin/activate && cd app && python -m __init__ --debug
+
+# Format
+cd app && black .
+# or use: ./scripts/format.sh
+```
+
+### External Tests (tests_external/)
+```bash
+# Run all tests against both implementations
+./scripts/run-tests.sh both
+./scripts/run-tests.sh python
+./scripts/run-tests.sh rust
+
+# Run single test manually (server must be in debug mode)
+cd tests_external && source venv/bin/activate
+pytest test_led_controller.py -v -k test_brightness
+pytest test_led_controller.py -v -k TestUDPOutput
+pytest test_led_controller.py::test_specific_function -v
+```
+
+## Code Style Guidelines
+
+### Rust
+- Max width: 128 columns (rustfmt.toml)
+- 4 spaces, no hard tabs
+- Unix newlines
+- Reorder imports and modules
+- Use snake_case for functions/variables
+- Use PascalCase for types/structs/enums
+- Error handling: Use `Result<T, E>` with `?` operator
+- Organize imports: std first, then crates, then local modules
+
+### Python
+- Formatter: Black (no specific line length set, use default 88)
+- Imports: Group stdlib, third-party, local; sort alphabetically
+- Naming: snake_case for functions/variables, PascalCase for classes
+- Error handling: Use exceptions, catch specific types
+- Type hints: Optional but encouraged for function signatures
+- No trailing whitespace, files end with newline
+
+### General
+- Prefix commits with implementation: `[rs]` for Rust, `[py]` for Python, `[test]` for tests
+- Do NOT add Co-Authored-By lines mentioning Claude/AI
+- Do NOT mention AI assistance in commit messages
+- Keep implementations behaviorally identical (test both with `run-tests.sh both`)
+
+## Project Structure
+
+- `app/` - Python Flask server implementation
+- `app_rs/` - Rust Actix-web server implementation
+- `tests_external/` - Standalone test suite (no shared imports with server)
+- `scripts/` - Build and test automation
+- `frontend/` - Static web UI
+- `embedded/` - ESP32/ESP8266 firmware
+
+## Testing Notes
+
+- Tests require server in `--debug` mode for deterministic behavior
+- Tests interact via REST API only (no direct code sharing)
+- Tests simulate ESP32 devices via UDP listeners
+- UDP protocol: Byte 0=msg_type, 1=sequence, 2=brightness, 3=num_leds, 4=device_id, 5+=RGB data
+
+## Dependencies
+
+- Rust: See `app_rs/Cargo.toml` (actix-web, serde, tokio)
+- Python app: See `requirements.txt` (Flask, black)
+- Python tests: See `tests_external/requirements.txt` (pytest, requests)
