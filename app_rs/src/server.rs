@@ -420,17 +420,31 @@ pub async fn start_server(looper: Looper) -> std::io::Result<()> {
         looper_state: looper.state(),
     });
 
-    // Determine static file directory
-    let static_dir = std::env::current_dir()
-        .ok()
-        .and_then(|p| {
-            if p.file_name()?.to_str()? == "app_rs" {
-                Some(p.parent()?.join("frontend"))
-            } else {
-                Some(p.join("frontend"))
-            }
-        })
-        .unwrap_or_else(|| PathBuf::from("../frontend"));
+    // Determine static file directory - checks multiple common locations
+    let mut candidates = vec![
+        // Docker container location
+        PathBuf::from("/app/frontend"),
+        // Local dev: running from project root
+        PathBuf::from("frontend"),
+        // Fallback
+        PathBuf::from("../frontend"),
+    ];
+
+    // Local dev: running from app_rs directory
+    if let Some(p) = std::env::current_dir().ok().and_then(|p| {
+        if p.file_name()?.to_str()? == "app_rs" {
+            Some(p.parent()?.join("frontend"))
+        } else {
+            None
+        }
+    }) {
+        candidates.push(p);
+    }
+
+    let static_dir = candidates
+        .into_iter()
+        .find(|p| p.exists() && p.is_dir())
+        .unwrap_or_else(|| PathBuf::from("/app/frontend"));
 
     let static_dir_data = web::Data::new(static_dir.clone());
 
