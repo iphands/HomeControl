@@ -411,21 +411,23 @@ impl Sparkle {
         // Simple RNG using timestamp
         let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
 
-        let low = self.get_int_opt("low") as u8;
-        let high = self.get_int_opt("high") as u8;
+        // Use i64 arithmetic to avoid overflow when low=0, high=255
+        let low = self.get_int_opt("low");
+        let high = self.get_int_opt("high");
+        let range = (high - low + 1).max(1) as u64;
 
         if self.get_bool_opt("r_on") {
-            self.arr[0] = (seed % ((high - low + 1) as u64)) as u8 + low;
+            self.arr[0] = ((seed % range) as i64 + low).clamp(0, 255) as u8;
         } else {
             self.arr[0] = 0;
         }
         if self.get_bool_opt("g_on") {
-            self.arr[1] = ((seed >> 8) % ((high - low + 1) as u64)) as u8 + low;
+            self.arr[1] = (((seed >> 8) % range) as i64 + low).clamp(0, 255) as u8;
         } else {
             self.arr[1] = 0;
         }
         if self.get_bool_opt("b_on") {
-            self.arr[2] = ((seed >> 16) % ((high - low + 1) as u64)) as u8 + low;
+            self.arr[2] = (((seed >> 16) % range) as i64 + low).clamp(0, 255) as u8;
         } else {
             self.arr[2] = 0;
         }
