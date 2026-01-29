@@ -1,31 +1,55 @@
 #!/bin/bash
 #
-# Start the LED controller server in production mode (no debug)
+# Start the LED controller server in production mode
 # For use with real ESP32 LED controllers
 #
 
 set -e
 
+# Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-APP_DIR="$PROJECT_ROOT/app"
-VENV_DIR="$PROJECT_ROOT/venv"
+source "$SCRIPT_DIR/common.sh"
 
-# Check venv exists
-if [[ ! -d "$VENV_DIR" ]]; then
-    echo "Error: Virtual environment not found at $VENV_DIR"
-    echo "Create it with: python -m venv $VENV_DIR && source $VENV_DIR/bin/activate && pip install -r requirements.txt"
+# Help text
+show_help() {
+  show_usage "$0" "<py|python|rs|rust>" \
+    "Start the LED controller server in production mode." \
+    ""
+  exit 0
+}
+
+# Main function
+main() {
+  # Check for help flag
+  check_help "$@" && show_help
+
+  # Parse subcommand
+  if ! parse_impl_subcommand "$1"; then
+    echo ""
+    show_usage "$0" "<py|python|rs|rust>" \
+      "Start the LED controller server in production mode."
     exit 1
-fi
+  fi
 
-# Activate venv and start server
-cd "$APP_DIR"
-source "$VENV_DIR/bin/activate"
+  # Check Python venv if using Python
+  if [[ "$IMPL" == "python" ]]; then
+    check_python_venv || exit 1
+  fi
 
-echo "Starting LED controller server..."
-echo "  Project root: $PROJECT_ROOT"
-echo "  App directory: $APP_DIR"
-echo "  Press Ctrl+C to stop"
-echo ""
+  # Kill any existing server
+  kill_port_processes
+  wait_for_port_release || true
 
-python -m __init__
+  # Start server
+  echo "Starting $IMPL_NAME LED controller server..."
+  echo "  Project root: $PROJECT_ROOT"
+  echo "  App directory: $IMPL_DIR"
+  echo "  Press Ctrl+C to stop"
+  echo ""
+
+  cd "$IMPL_DIR"
+  eval "$START_CMD"
+}
+
+# Run main
+main "$@"
