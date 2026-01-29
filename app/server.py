@@ -3,7 +3,7 @@ import looper as loop
 import fan_ctrl as fan
 from flask import Flask, request, json, jsonify, send_from_directory
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder="static")
 app.config.from_object(__name__)
 app.url_map.strict_slashes = False
 
@@ -44,17 +44,17 @@ def _process_opts_from_request(new_opts, orig_opts):
 
 @app.route("/")
 def hello_world():
-    return send_from_directory('../frontend', 'index.html')
+    return send_from_directory("../frontend", "index.html")
 
 
 @app.route("/css/<path:filename>")
 def serve_css(filename):
-    return send_from_directory('../frontend/css', filename)
+    return send_from_directory("../frontend/css", filename)
 
 
 @app.route("/js/<path:filename>")
 def serve_js(filename):
-    return send_from_directory('../frontend/js', filename)
+    return send_from_directory("../frontend/js", filename)
 
 
 @app.route("/fanbuttons/<string:btn_id>")

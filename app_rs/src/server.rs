@@ -1,32 +1,45 @@
-use crate::looper::{Looper, LooperState};
-use crate::modes::get_available_modes;
-use crate::opts::OptValue;
-use actix_files::NamedFile;
-use actix_web::{web, App, HttpResponse, HttpServer};
-use serde::{Deserialize, Serialize};
+//! HTTP API server for LED strip control.
+//!
+//! This module provides a REST API for controlling LED strips,
+/// managing animation modes, brightness, and configuration.
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
-pub struct AppState {
-    looper_state: Arc<Mutex<LooperState>>,
+use actix_files::NamedFile;
+use actix_web::{http::StatusCode, middleware, web, App, HttpResponse, HttpServer, ResponseError};
+use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
+
+use crate::error::{Error, ErrorResponse};
+use crate::looper::{Looper, LooperState};
+use crate::modes::available_modes;
+use crate::opts::OptValue;
+
+/// Shared application state available to all request handlers.
+struct AppState {
+    /// Reference to the looper state for LED control.
+    looper_state: std::sync::Arc<std::sync::Mutex<LooperState>>,
 }
 
+/// Request body for setting the animation mode.
 #[derive(Deserialize)]
 struct SetModeRequest {
     mode: String,
 }
 
+/// Request body for setting brightness.
 #[derive(Deserialize)]
 struct SetBrightnessRequest {
     brightness: u8,
 }
 
+/// Request body for setting animation delay.
 #[derive(Deserialize)]
 struct SetDelayRequest {
     delay: f64,
 }
 
+/// Request body for configuring a strip.
 #[derive(Deserialize)]
 struct ConfigureStripRequest {
     #[serde(default)]
@@ -35,6 +48,7 @@ struct ConfigureStripRequest {
     port: Option<u16>,
 }
 
+/// Request body for controlling the animation loop.
 #[derive(Deserialize)]
 struct LoopControlRequest {
     #[serde(default)]
@@ -43,384 +57,437 @@ struct LoopControlRequest {
     next_state: Option<String>,
 }
 
+/// Response containing the current animation mode.
 #[derive(Serialize)]
 struct ModeResponse {
     mode: String,
 }
 
+/// Response containing brightness information.
 #[derive(Serialize)]
 struct BrightnessResponse {
     brightness: u8,
 }
 
+/// Response containing delay information.
 #[derive(Serialize)]
 struct DelayResponse {
     delay: f64,
 }
 
+/// Response containing animation options.
 #[derive(Serialize)]
-struct OptsResponse {
+struct OptionsResponse {
     opts: HashMap<String, OptValue>,
 }
 
+/// Response containing list of strips.
 #[derive(Serialize)]
 struct StripsResponse {
     strips: Vec<crate::looper::StripInfo>,
 }
 
+/// Response containing strip configuration.
 #[derive(Serialize)]
 struct StripConfigResponse {
     #[serde(flatten)]
     info: crate::looper::StripInfo,
 }
 
-#[derive(Serialize)]
-struct ErrorResponse {
-    error: String,
+/// Custom error type for HTTP responses.
+#[derive(Debug)]
+struct HttpError(Error);
+
+impl std::fmt::Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
-fn process_opts_for_response(opts: HashMap<String, OptValue>) -> HashMap<String, OptValue> {
-    let mut response_opts: HashMap<String, OptValue> = HashMap::new();
-    for (key, opt) in opts {
-        let converted_opt = if opt.type_name == "color" {
-            if let Some(rgb) = crate::opts::parse_color(&opt.value) {
-                let hex = format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
-                OptValue {
-                    value: serde_json::Value::String(hex),
-                    type_name: opt.type_name,
-                }
+impl std::error::Error for HttpError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+impl ResponseError for HttpError {
+    fn error_response(&self) -> HttpResponse {
+        let (status, error_response) = match &self.0 {
+            Error::StripNotFound(_) => (StatusCode::NOT_FOUND, ErrorResponse::from(self.0.clone())),
+            Error::UnknownMode(_) => (StatusCode::BAD_REQUEST, ErrorResponse::from(self.0.clone())),
+            Error::DebugModeRequired => (
+                StatusCode::FORBIDDEN,
+                ErrorResponse::new("Debug mode required for this operation"),
+            ),
+            _ => (StatusCode::INTERNAL_SERVER_ERROR, ErrorResponse::new("Internal server error")),
+        };
+
+        HttpResponse::build(status).json(error_response)
+    }
+}
+
+impl From<Error> for HttpError {
+    fn from(err: Error) -> Self {
+        Self(err)
+    }
+}
+
+/// Converts options to response format with color hex conversion.
+fn convert_options_for_response(opts: HashMap<String, OptValue>) -> HashMap<String, OptValue> {
+    opts.into_iter()
+        .map(|(key, opt)| {
+            let converted = if opt.type_name == "color" {
+                opt.to_hex_color()
+                    .map(|hex| OptValue {
+                        value: serde_json::Value::String(hex),
+                        type_name: opt.type_name.clone(),
+                    })
+                    .unwrap_or(opt)
             } else {
                 opt
-            }
-        } else {
-            opt
-        };
-        response_opts.insert(key, converted_opt);
-    }
-    response_opts
+            };
+            (key, converted)
+        })
+        .collect()
 }
 
-fn process_opts_from_request(mut opts: HashMap<String, OptValue>) -> HashMap<String, OptValue> {
+/// Converts request options to internal format with type coercion.
+fn convert_options_from_request(mut opts: HashMap<String, OptValue>) -> HashMap<String, OptValue> {
     for (_, opt) in opts.iter_mut() {
-        if opt.type_name == "bool" {
-            if let Some(s) = opt.value.as_str() {
-                opt.value = serde_json::Value::Bool(s == "true");
-            }
-        } else if opt.type_name == "int" {
-            if let Some(s) = opt.value.as_str() {
-                if let Ok(n) = s.parse::<i64>() {
-                    opt.value = serde_json::Value::Number(n.into());
+        match opt.type_name.as_str() {
+            "bool" => {
+                if let Some(s) = opt.value.as_str() {
+                    opt.value = serde_json::Value::Bool(s == "true");
                 }
             }
-        } else if opt.type_name == "color" {
-            if let Some(s) = opt.value.as_str() {
-                if s.starts_with('#') && s.len() == 7 {
-                    if let (Ok(r), Ok(g), Ok(b)) = (
-                        u8::from_str_radix(&s[1..3], 16),
-                        u8::from_str_radix(&s[3..5], 16),
-                        u8::from_str_radix(&s[5..7], 16),
-                    ) {
-                        opt.value = serde_json::Value::Array(vec![
-                            serde_json::Value::Number(r.into()),
-                            serde_json::Value::Number(g.into()),
-                            serde_json::Value::Number(b.into()),
-                        ]);
+            "int" => {
+                if let Some(s) = opt.value.as_str() {
+                    if let Ok(n) = s.parse::<i64>() {
+                        opt.value = serde_json::Value::Number(n.into());
                     }
                 }
             }
+            "color" => {
+                if let Some(s) = opt.value.as_str() {
+                    if let Ok(rgb) = OptValue::parse_color(&serde_json::Value::String(s.to_string())) {
+                        *opt = OptValue::color(rgb);
+                    }
+                }
+            }
+            _ => {}
         }
     }
     opts
 }
 
-async fn get_modes(_data: web::Data<AppState>) -> HttpResponse {
-    let modes = get_available_modes();
-    HttpResponse::Ok().json(modes)
+/// GET /api/modes - Returns list of available animation modes.
+async fn get_modes() -> HttpResponse {
+    HttpResponse::Ok().json(available_modes())
 }
 
-async fn get_current_mode(data: web::Data<AppState>) -> HttpResponse {
-    let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(ModeResponse {
-        mode: state.get_current_mode_name(),
-    })
+/// GET /api/modes/current - Returns the current global mode.
+async fn get_current_mode(data: web::Data<AppState>) -> std::result::Result<HttpResponse, HttpError> {
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    Ok(HttpResponse::Ok().json(ModeResponse {
+        mode: state.current_mode(),
+    }))
 }
 
-async fn set_current_mode(data: web::Data<AppState>, req: web::Json<SetModeRequest>) -> HttpResponse {
-    let mut state = data.looper_state.lock().unwrap();
-    state.set_mode(&req.mode);
-    HttpResponse::Ok().json(ModeResponse {
-        mode: state.get_current_mode_name(),
-    })
+/// POST /api/modes/current - Sets the global animation mode.
+async fn set_current_mode(
+    data: web::Data<AppState>,
+    req: web::Json<SetModeRequest>,
+) -> std::result::Result<HttpResponse, HttpError> {
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    state.set_mode(&req.mode)?;
+    Ok(HttpResponse::Ok().json(ModeResponse {
+        mode: state.current_mode(),
+    }))
 }
 
-async fn get_brightness(data: web::Data<AppState>) -> HttpResponse {
-    let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(BrightnessResponse {
-        brightness: state.get_brightness(),
-    })
+/// GET /api/brightness - Returns the current global brightness.
+async fn get_brightness(data: web::Data<AppState>) -> std::result::Result<HttpResponse, HttpError> {
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    Ok(HttpResponse::Ok().json(BrightnessResponse {
+        brightness: state.brightness(),
+    }))
 }
 
-async fn set_brightness(data: web::Data<AppState>, req: web::Json<SetBrightnessRequest>) -> HttpResponse {
-    let mut state = data.looper_state.lock().unwrap();
+/// POST /api/brightness - Sets the global brightness.
+async fn set_brightness(
+    data: web::Data<AppState>,
+    req: web::Json<SetBrightnessRequest>,
+) -> std::result::Result<HttpResponse, HttpError> {
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
     state.set_brightness(req.brightness);
-    HttpResponse::Ok().json(BrightnessResponse {
-        brightness: state.get_brightness(),
-    })
+    Ok(HttpResponse::Ok().json(BrightnessResponse {
+        brightness: state.brightness(),
+    }))
 }
 
-async fn get_delay(data: web::Data<AppState>) -> HttpResponse {
-    let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(DelayResponse {
-        delay: state.get_delay(),
-    })
+/// GET /api/delay - Returns the current global delay.
+async fn get_delay(data: web::Data<AppState>) -> std::result::Result<HttpResponse, HttpError> {
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    Ok(HttpResponse::Ok().json(DelayResponse { delay: state.delay() }))
 }
 
-async fn set_delay(data: web::Data<AppState>, req: web::Json<SetDelayRequest>) -> HttpResponse {
-    let mut state = data.looper_state.lock().unwrap();
+/// POST /api/delay - Sets the global delay.
+async fn set_delay(data: web::Data<AppState>, req: web::Json<SetDelayRequest>) -> std::result::Result<HttpResponse, HttpError> {
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
     state.set_delay(req.delay);
-    HttpResponse::Ok().json(DelayResponse {
-        delay: state.get_delay(),
-    })
+    Ok(HttpResponse::Ok().json(DelayResponse { delay: state.delay() }))
 }
 
-async fn get_opts(data: web::Data<AppState>) -> HttpResponse {
-    let state = data.looper_state.lock().unwrap();
-    let opts = state.get_opts();
-    HttpResponse::Ok().json(OptsResponse {
-        opts: process_opts_for_response(opts),
-    })
+/// GET /api/opts - Returns the current global options.
+async fn get_options(data: web::Data<AppState>) -> std::result::Result<HttpResponse, HttpError> {
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    Ok(HttpResponse::Ok().json(OptionsResponse {
+        opts: convert_options_for_response(state.options()),
+    }))
 }
 
-async fn set_opts(data: web::Data<AppState>, req: web::Json<HashMap<String, OptValue>>) -> HttpResponse {
-    let opts = process_opts_from_request(req.0.clone());
-    let mut state = data.looper_state.lock().unwrap();
-    state.set_opts(opts);
-    let current_opts = state.get_opts();
-    HttpResponse::Ok().json(OptsResponse {
-        opts: process_opts_for_response(current_opts),
-    })
+/// POST /api/opts - Sets the global options.
+async fn set_options(
+    data: web::Data<AppState>,
+    req: web::Json<HashMap<String, OptValue>>,
+) -> std::result::Result<HttpResponse, HttpError> {
+    let opts = convert_options_from_request(req.0.clone());
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    state.set_options(opts);
+    Ok(HttpResponse::Ok().json(OptionsResponse {
+        opts: convert_options_for_response(state.options()),
+    }))
 }
 
-async fn get_strips(data: web::Data<AppState>) -> HttpResponse {
-    let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(StripsResponse {
-        strips: state.get_strips(),
-    })
+/// GET /api/strips - Returns information about all strips.
+async fn get_strips(data: web::Data<AppState>) -> std::result::Result<HttpResponse, HttpError> {
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    Ok(HttpResponse::Ok().json(StripsResponse {
+        strips: state.strips_info(),
+    }))
 }
 
+/// POST /api/strips/{id} - Configures a specific strip (debug only).
 async fn configure_strip(
     data: web::Data<AppState>,
     path: web::Path<u8>,
     req: web::Json<ConfigureStripRequest>,
-) -> HttpResponse {
+) -> std::result::Result<HttpResponse, HttpError> {
     let strip_id = path.into_inner();
-    let mut state = data.looper_state.lock().unwrap();
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
 
-    match state.configure_strip(strip_id, req.hostname.clone(), req.port) {
-        Ok(info) => HttpResponse::Ok().json(StripConfigResponse { info }),
-        Err(e) => HttpResponse::Ok().json(ErrorResponse { error: e }),
+    let info = state.configure_strip(strip_id, req.hostname.clone(), req.port)?;
+    Ok(HttpResponse::Ok().json(StripConfigResponse { info }))
+}
+
+// ==================== Per-Strip Endpoints ====================
+
+/// GET /api/strips/{id}/mode - Returns mode for a specific strip.
+async fn get_strip_mode(data: web::Data<AppState>, path: web::Path<u8>) -> std::result::Result<HttpResponse, HttpError> {
+    let strip_id = path.into_inner();
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+
+    match state.strip_mode(strip_id) {
+        Some(mode) => Ok(HttpResponse::Ok().json(ModeResponse { mode })),
+        None => Err(HttpError(Error::StripNotFound(strip_id))),
     }
 }
 
-// --- Per-strip endpoints ---
-
-async fn get_strip_mode(data: web::Data<AppState>, path: web::Path<u8>) -> HttpResponse {
+/// POST /api/strips/{id}/mode - Sets mode for a specific strip.
+async fn set_strip_mode(
+    data: web::Data<AppState>,
+    path: web::Path<u8>,
+    req: web::Json<SetModeRequest>,
+) -> std::result::Result<HttpResponse, HttpError> {
     let strip_id = path.into_inner();
-    let state = data.looper_state.lock().unwrap();
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
 
-    match state.get_strip_mode(strip_id) {
-        Some(mode) => HttpResponse::Ok().json(ModeResponse { mode }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
+    state.set_strip_mode(strip_id, &req.mode)?;
+    Ok(HttpResponse::Ok().json(ModeResponse {
+        mode: state.strip_mode(strip_id).unwrap_or_default(),
+    }))
+}
+
+/// GET /api/strips/{id}/brightness - Returns brightness for a specific strip.
+async fn get_strip_brightness(data: web::Data<AppState>, path: web::Path<u8>) -> std::result::Result<HttpResponse, HttpError> {
+    let strip_id = path.into_inner();
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+
+    match state.strip_brightness(strip_id) {
+        Some(brightness) => Ok(HttpResponse::Ok().json(BrightnessResponse { brightness })),
+        None => Err(HttpError(Error::StripNotFound(strip_id))),
     }
 }
 
-async fn set_strip_mode(data: web::Data<AppState>, path: web::Path<u8>, req: web::Json<SetModeRequest>) -> HttpResponse {
-    let strip_id = path.into_inner();
-    let mut state = data.looper_state.lock().unwrap();
-
-    match state.set_strip_mode(strip_id, &req.mode) {
-        Some(mode) => HttpResponse::Ok().json(ModeResponse { mode }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found or invalid mode", strip_id),
-        }),
-    }
-}
-
-async fn get_strip_brightness(data: web::Data<AppState>, path: web::Path<u8>) -> HttpResponse {
-    let strip_id = path.into_inner();
-    let state = data.looper_state.lock().unwrap();
-
-    match state.get_strip_brightness(strip_id) {
-        Some(brightness) => HttpResponse::Ok().json(BrightnessResponse { brightness }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
-    }
-}
-
+/// POST /api/strips/{id}/brightness - Sets brightness for a specific strip.
 async fn set_strip_brightness(
     data: web::Data<AppState>,
     path: web::Path<u8>,
     req: web::Json<SetBrightnessRequest>,
-) -> HttpResponse {
+) -> std::result::Result<HttpResponse, HttpError> {
     let strip_id = path.into_inner();
-    let mut state = data.looper_state.lock().unwrap();
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
 
-    match state.set_strip_brightness(strip_id, req.brightness) {
-        Some(brightness) => HttpResponse::Ok().json(BrightnessResponse { brightness }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
+    let brightness = state.set_strip_brightness(strip_id, req.brightness)?;
+    Ok(HttpResponse::Ok().json(BrightnessResponse { brightness }))
+}
+
+/// GET /api/strips/{id}/delay - Returns delay for a specific strip.
+async fn get_strip_delay(data: web::Data<AppState>, path: web::Path<u8>) -> std::result::Result<HttpResponse, HttpError> {
+    let strip_id = path.into_inner();
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+
+    match state.strip_delay(strip_id) {
+        Some(delay) => Ok(HttpResponse::Ok().json(DelayResponse { delay })),
+        None => Err(HttpError(Error::StripNotFound(strip_id))),
     }
 }
 
-async fn get_strip_delay(data: web::Data<AppState>, path: web::Path<u8>) -> HttpResponse {
+/// POST /api/strips/{id}/delay - Sets delay for a specific strip.
+async fn set_strip_delay(
+    data: web::Data<AppState>,
+    path: web::Path<u8>,
+    req: web::Json<SetDelayRequest>,
+) -> std::result::Result<HttpResponse, HttpError> {
     let strip_id = path.into_inner();
-    let state = data.looper_state.lock().unwrap();
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
 
-    match state.get_strip_delay(strip_id) {
-        Some(delay) => HttpResponse::Ok().json(DelayResponse { delay }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
+    let delay = state.set_strip_delay(strip_id, req.delay)?;
+    Ok(HttpResponse::Ok().json(DelayResponse { delay }))
+}
+
+/// GET /api/strips/{id}/opts - Returns options for a specific strip.
+async fn get_strip_options(data: web::Data<AppState>, path: web::Path<u8>) -> std::result::Result<HttpResponse, HttpError> {
+    let strip_id = path.into_inner();
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+
+    match state.strip_options(strip_id) {
+        Some(opts) => Ok(HttpResponse::Ok().json(OptionsResponse {
+            opts: convert_options_for_response(opts),
+        })),
+        None => Err(HttpError(Error::StripNotFound(strip_id))),
     }
 }
 
-async fn set_strip_delay(data: web::Data<AppState>, path: web::Path<u8>, req: web::Json<SetDelayRequest>) -> HttpResponse {
-    let strip_id = path.into_inner();
-    let mut state = data.looper_state.lock().unwrap();
-
-    match state.set_strip_delay(strip_id, req.delay) {
-        Some(delay) => HttpResponse::Ok().json(DelayResponse { delay }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
-    }
-}
-
-async fn get_strip_opts(data: web::Data<AppState>, path: web::Path<u8>) -> HttpResponse {
-    let strip_id = path.into_inner();
-    let state = data.looper_state.lock().unwrap();
-
-    match state.get_strip_opts(strip_id) {
-        Some(opts) => HttpResponse::Ok().json(OptsResponse {
-            opts: process_opts_for_response(opts),
-        }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
-    }
-}
-
-async fn set_strip_opts(
+/// POST /api/strips/{id}/opts - Sets options for a specific strip.
+async fn set_strip_options(
     data: web::Data<AppState>,
     path: web::Path<u8>,
     req: web::Json<HashMap<String, OptValue>>,
-) -> HttpResponse {
+) -> std::result::Result<HttpResponse, HttpError> {
     let strip_id = path.into_inner();
-    let opts = process_opts_from_request(req.0.clone());
-    let mut state = data.looper_state.lock().unwrap();
+    let opts = convert_options_from_request(req.0.clone());
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
 
-    match state.set_strip_opts(strip_id, opts) {
-        Some(current_opts) => HttpResponse::Ok().json(OptsResponse {
-            opts: process_opts_for_response(current_opts),
-        }),
-        None => HttpResponse::NotFound().json(ErrorResponse {
-            error: format!("strip {} not found", strip_id),
-        }),
-    }
+    let current_opts = state.set_strip_options(strip_id, opts)?;
+    Ok(HttpResponse::Ok().json(OptionsResponse {
+        opts: convert_options_for_response(current_opts),
+    }))
 }
 
-async fn get_looper_state(data: web::Data<AppState>) -> HttpResponse {
-    let state = data.looper_state.lock().unwrap();
-    HttpResponse::Ok().json(state.get_loop_state())
+// ==================== Looper Control Endpoints ====================
+
+/// GET /api/looper - Returns the current looper state.
+async fn get_looper_state(data: web::Data<AppState>) -> std::result::Result<HttpResponse, HttpError> {
+    let state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    Ok(HttpResponse::Ok().json(state.loop_state()))
 }
 
-async fn control_looper(data: web::Data<AppState>, req: web::Json<LoopControlRequest>) -> HttpResponse {
-    let mut state = data.looper_state.lock().unwrap();
-    let result = state.loop_control(req.iterations, req.next_state.clone());
-    HttpResponse::Ok().json(result)
+/// POST /api/looper - Controls the animation loop (debug only).
+async fn control_looper(
+    data: web::Data<AppState>,
+    req: web::Json<LoopControlRequest>,
+) -> std::result::Result<HttpResponse, HttpError> {
+    let mut state = data.looper_state.lock().map_err(|_| Error::LockPoisoned)?;
+    let result = state.control_loop(req.iterations, req.next_state.clone())?;
+    Ok(HttpResponse::Ok().json(result))
 }
 
-async fn index(static_dir: web::Data<PathBuf>) -> actix_web::Result<NamedFile> {
+// ==================== Static File Serving ====================
+
+/// Serves the index.html file.
+async fn serve_index(static_dir: web::Data<PathBuf>) -> actix_web::Result<NamedFile> {
     let index_path = static_dir.join("index.html");
-    Ok(NamedFile::open(index_path)?)
+    NamedFile::open(index_path).map_err(|e| {
+        warn!("Failed to serve index.html: {}", e);
+        actix_web::error::ErrorNotFound("index.html not found")
+    })
 }
 
+/// Starts the HTTP server with all configured routes.
 pub async fn start_server(looper: Looper) -> std::io::Result<()> {
     let app_state = web::Data::new(AppState {
-        looper_state: looper.get_state(),
+        looper_state: looper.state(),
     });
 
-    // Get the project root and static directory path
+    // Determine static file directory
     let static_dir = std::env::current_dir()
         .ok()
         .and_then(|p| {
-            // If we're in app_rs, go up one level then into frontend
             if p.file_name()?.to_str()? == "app_rs" {
                 Some(p.parent()?.join("frontend"))
             } else {
-                // Otherwise assume we're in project root
                 Some(p.join("frontend"))
             }
         })
-        .unwrap_or_else(|| std::path::PathBuf::from("../frontend"));
+        .unwrap_or_else(|| PathBuf::from("../frontend"));
 
     let static_dir_data = web::Data::new(static_dir.clone());
+
+    info!("Starting HTTP server on 0.0.0.0:5000");
+    info!("Serving static files from: {:?}", static_dir);
 
     HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
             .app_data(static_dir_data.clone())
-            // API routes - all prefixed with /api
-            .route("/api/modes", web::get().to(get_modes))
-            .route("/api/modes/", web::get().to(get_modes))
-            .route("/api/modes/current", web::get().to(get_current_mode))
-            .route("/api/modes/current/", web::get().to(get_current_mode))
-            .route("/api/modes/current", web::post().to(set_current_mode))
-            .route("/api/modes/current/", web::post().to(set_current_mode))
-            .route("/api/brightness", web::get().to(get_brightness))
-            .route("/api/brightness/", web::get().to(get_brightness))
-            .route("/api/brightness", web::post().to(set_brightness))
-            .route("/api/brightness/", web::post().to(set_brightness))
-            .route("/api/delay", web::get().to(get_delay))
-            .route("/api/delay/", web::get().to(get_delay))
-            .route("/api/delay", web::post().to(set_delay))
-            .route("/api/delay/", web::post().to(set_delay))
-            .route("/api/opts", web::get().to(get_opts))
-            .route("/api/opts/", web::get().to(get_opts))
-            .route("/api/opts", web::post().to(set_opts))
-            .route("/api/opts/", web::post().to(set_opts))
-            .route("/api/strips", web::get().to(get_strips))
-            .route("/api/strips/", web::get().to(get_strips))
-            .route("/api/strips/{id}", web::post().to(configure_strip))
-            .route("/api/strips/{id}/", web::post().to(configure_strip))
-            // Per-strip endpoints
-            .route("/api/strips/{id}/mode", web::get().to(get_strip_mode))
-            .route("/api/strips/{id}/mode/", web::get().to(get_strip_mode))
-            .route("/api/strips/{id}/mode", web::post().to(set_strip_mode))
-            .route("/api/strips/{id}/mode/", web::post().to(set_strip_mode))
-            .route("/api/strips/{id}/brightness", web::get().to(get_strip_brightness))
-            .route("/api/strips/{id}/brightness/", web::get().to(get_strip_brightness))
-            .route("/api/strips/{id}/brightness", web::post().to(set_strip_brightness))
-            .route("/api/strips/{id}/brightness/", web::post().to(set_strip_brightness))
-            .route("/api/strips/{id}/delay", web::get().to(get_strip_delay))
-            .route("/api/strips/{id}/delay/", web::get().to(get_strip_delay))
-            .route("/api/strips/{id}/delay", web::post().to(set_strip_delay))
-            .route("/api/strips/{id}/delay/", web::post().to(set_strip_delay))
-            .route("/api/strips/{id}/opts", web::get().to(get_strip_opts))
-            .route("/api/strips/{id}/opts/", web::get().to(get_strip_opts))
-            .route("/api/strips/{id}/opts", web::post().to(set_strip_opts))
-            .route("/api/strips/{id}/opts/", web::post().to(set_strip_opts))
-            .route("/api/looper", web::get().to(get_looper_state))
-            .route("/api/looper/", web::get().to(get_looper_state))
-            .route("/api/looper", web::post().to(control_looper))
-            .route("/api/looper/", web::post().to(control_looper))
-            // Root path serves index.html
-            .route("/", web::get().to(index))
-            // Static files served from root (css, js)
+            // Logging middleware
+            .wrap(middleware::Logger::default())
+            // Normalize paths middleware (handles trailing slashes)
+            .wrap(middleware::NormalizePath::trim())
+            // Error handling
+            .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                actix_web::error::InternalError::from_response(
+                    err,
+                    HttpResponse::BadRequest().json(ErrorResponse::new("Invalid JSON")),
+                )
+                .into()
+            }))
+            // API routes
+            .service(
+                web::scope("/api")
+                    // Mode routes
+                    .route("/modes", web::get().to(get_modes))
+                    .route("/modes/current", web::get().to(get_current_mode))
+                    .route("/modes/current", web::post().to(set_current_mode))
+                    // Brightness routes
+                    .route("/brightness", web::get().to(get_brightness))
+                    .route("/brightness", web::post().to(set_brightness))
+                    // Delay routes
+                    .route("/delay", web::get().to(get_delay))
+                    .route("/delay", web::post().to(set_delay))
+                    // Options routes
+                    .route("/opts", web::get().to(get_options))
+                    .route("/opts", web::post().to(set_options))
+                    // Strips routes
+                    .route("/strips", web::get().to(get_strips))
+                    .route("/strips/{id}", web::post().to(configure_strip))
+                    // Per-strip routes
+                    .route("/strips/{id}/mode", web::get().to(get_strip_mode))
+                    .route("/strips/{id}/mode", web::post().to(set_strip_mode))
+                    .route("/strips/{id}/brightness", web::get().to(get_strip_brightness))
+                    .route("/strips/{id}/brightness", web::post().to(set_strip_brightness))
+                    .route("/strips/{id}/delay", web::get().to(get_strip_delay))
+                    .route("/strips/{id}/delay", web::post().to(set_strip_delay))
+                    .route("/strips/{id}/opts", web::get().to(get_strip_options))
+                    .route("/strips/{id}/opts", web::post().to(set_strip_options))
+                    // Looper control routes
+                    .route("/looper", web::get().to(get_looper_state))
+                    .route("/looper", web::post().to(control_looper)),
+            )
+            // Root path
+            .route("/", web::get().to(serve_index))
+            // Static files
             .service(actix_files::Files::new("/", &static_dir).index_file("index.html"))
     })
     .bind("0.0.0.0:5000")?
