@@ -5,7 +5,7 @@
 		<meta http-equiv="X-UA-Compatible" content="IE=edge">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="/css/app.css">
+		<link rel="stylesheet" href="/static/css/app.css">
 		<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 		<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
 		<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/angular_material/1.1.1/angular-material.min.css">
@@ -73,8 +73,8 @@
 						<h2>Options</h2>
 						<div ng-repeat="(k, v) in opts">
 							<label>{{k}}
-								<input ng-if="v.type === 'color'" class="{{v.type}}" type="color" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
-								<input class="{{v.type}}" type="text" value="{{v.val}}", ng-model="opts[k].val" ng-change="changeOpt(k)">
+								<input ng-if="v.type === 'color'" class="{{v.type}}" type="color" ng-model="opts[k].val" ng-change="changeOpt(k)">
+								<input ng-if="v.type !== 'color'" class="{{v.type}}" type="text" ng-model="opts[k].val" ng-change="changeOpt(k)">
 							</label>
 						</div>
 					</div>
