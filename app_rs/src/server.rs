@@ -1,6 +1,7 @@
 use crate::looper::{Looper, LooperState};
 use crate::modes::get_available_modes;
 use crate::opts::OptValue;
+use actix_files::Files;
 use actix_web::{web, App, HttpResponse, HttpServer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -271,10 +272,25 @@ pub async fn start_server(looper: Looper) -> std::io::Result<()> {
         looper_state: looper.get_state(),
     });
     
+    // Get the project root and static directory path
+    let static_dir = std::env::current_dir()
+        .ok()
+        .and_then(|p| {
+            // If we're in app_rs, go up one level then into app/static
+            if p.file_name()?.to_str()? == "app_rs" {
+                Some(p.parent()?.join("app").join("static"))
+            } else {
+                // Otherwise assume we're in project root
+                Some(p.join("app").join("static"))
+            }
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("../app/static"));
+    
     HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
             .route("/", web::get().to(hello))
+            .service(Files::new("/static", &static_dir).show_files_listing())
             .route("/modes", web::get().to(get_modes))
             .route("/modes/current", web::get().to(get_current_mode))
             .route("/modes/current", web::post().to(set_current_mode))
