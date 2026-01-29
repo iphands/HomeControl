@@ -1,6 +1,7 @@
-FROM python:slim-trixie
+FROM debian:trixie-slim
 WORKDIR /src
-COPY ./requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt update && apt install -y cargo
 COPY ./app /src/app
-CMD [ "python3", "app/__init__.py" ]
+COPY ./app_rs /src/app_rs
+RUN cd /src/app_rs && cargo build --release
+CMD [ "/src/app_rs/target/release/homectl" ]
