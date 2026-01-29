@@ -47,11 +47,11 @@ class Strip():
         Off(self)
 
 
-    def get_brightness():
+    def get_brightness(self):
         return self.LEDS[2]
 
 
-    def set_brightness(val):
+    def set_brightness(self, val):
         self.LEDS[2] = val
 
 
@@ -100,7 +100,7 @@ class Strip():
         sleep(delay)
 
 
-    def simple_walk(arr, pool):
+    def simple_walk(self, arr, pool):
         if not (len(arr) + self.NUM_LEDS) % 2:
             next(pool)
         for x in range(0, self.NUM_LEDS):
@@ -112,7 +112,7 @@ class Strip():
         while True:
             for i in range(0, 1000):
                 x = i / 1000.0
-                solid(get_rgb(x, 1, 1))
+                self.solid(get_rgb(x, 1, 1))
                 sleep(0.01)
 
 
@@ -160,9 +160,9 @@ class RainbowCycle(Mode):
             self.colors.append(self.strip.get_rgb((x * self.multiplier), 1, 1))
 
     def update(self):
-        for x in range(0, NUM_LEDS):
+        for x in range(0, self.strip.NUM_LEDS):
             self.strip.set_led_arr(x, self.colors[x])
-        send()
+        self.strip.send()
         self.colors.insert(0, self.colors.pop())
 
 
@@ -224,7 +224,7 @@ class Collider(Mode):
         self.collision_stren = 100
 
     def update(self):
-        solid([0, 0, 0])
+        self.strip.solid([0, 0, 0])
         if len(self.collision):
             stren = self.collision_stren / 100
             color = [int(i * stren) for i in colors.RED]
@@ -246,7 +246,7 @@ class Collider(Mode):
             self.direction_a *= -1
             self.direction_b *= -1
             self.collision = [self.counter_a, self.counter_b]
-        send()
+        self.strip.send()
 
     def _update(self, counter, direction, color):
         for x in range(0, self.strip.NUM_LEDS):
@@ -263,40 +263,41 @@ class Collider(Mode):
 
 
 class Christmas(Mode):
-    def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, {})
+    def __init__(self, strip):
+        Mode.__init__(self, self.__class__.__name__, strip, {})
         self.arr = [colors.RED, colors.GREEN]
         self.pool = cycle(self.arr)
 
     def update(self):
-        simple_walk(self.arr, self.pool)
+        self.strip.simple_walk(self.arr, self.pool)
 
 
 class MardiGras(Mode):
-    def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, {})
+    def __init__(self, strip):
+        Mode.__init__(self, self.__class__.__name__, strip, {})
         self.arr = [colors.PURPLE, colors.GREEN, colors.YELLOW]
         self.pool = cycle(self.arr)
 
     def update(self):
-        simple_walk(self.arr, self.pool)
+        self.strip.simple_walk(self.arr, self.pool)
 
 
 class ArrGeeBee(Mode):
-    def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, {})
+    def __init__(self, strip):
+        Mode.__init__(self, self.__class__.__name__, strip, {})
         self.arr = [colors.RED, colors.GREEN, colors.BLUE]
         self.pool = cycle(self.arr)
 
     def update(self):
-        simple_walk(self.arr, self.pool)
+        self.strip.simple_walk(self.arr, self.pool)
 
 
 class Sparkle(Mode):
-    def __init__(self):
+    def __init__(self, strip):
         Mode.__init__(
             self,
             self.__class__.__name__,
+            strip,
             {
                 "low": options.create_int(0),
                 "high": options.create_int(255),
@@ -322,15 +323,16 @@ class Sparkle(Mode):
             if randint(0, (self.strip.NUM_LEDS * 3)) == 0:
                 self.strip.set_led_arr(x, self.get_arr())
             else:
-                self.strip.set_led_arr(x, vol(get_led(x), self.opts.decay.val))
-        send()
+                self.strip.set_led_arr(x, self.strip.vol(self.strip.get_led(x), self.opts.decay.val))
+        self.strip.send()
 
 
 class Breathe(Mode):
-    def __init__(self):
+    def __init__(self, strip):
         Mode.__init__(
             self,
             self.__class__.__name__,
+            strip,
             {
                 "r": 255,
                 "g": 0,
@@ -343,8 +345,8 @@ class Breathe(Mode):
         self.direction = 1
 
     def update(self):
-        set_brightness(self.counter)
-        solid([self.opts.r, self.opts.g, self.opts.b])
+        self.strip.set_brightness(self.counter)
+        self.strip.solid([self.opts.r, self.opts.g, self.opts.b])
         if self.counter >= self.opts.high:
             self.direction = -1
         elif self.counter <= self.opts.low:
@@ -353,37 +355,38 @@ class Breathe(Mode):
 
 
 class Solid(Mode):
-    def __init__(self):
+    def __init__(self, strip):
         Mode.__init__(
             self,
             self.__class__.__name__,
+            strip,
             {"color": options.create_color(colors.YELLOW)},
         )
 
     def update(self):
-        solid(self.opts.color.val)
+        self.strip.solid(self.opts.color.val)
 
     def load_cb(self, d):
         d["set_delay"](0.250)
 
 
 class White(Mode):
-    def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, {})
+    def __init__(self, strip):
+        Mode.__init__(self, self.__class__.__name__, strip, {})
 
     def update(self):
-        solid([255, 255, 255])
+        self.strip.solid([255, 255, 255])
 
     def load_cb(self, d):
         d["set_delay"](0.250)
 
 
 class Off(Mode):
-    def __init__(self):
-        Mode.__init__(self, self.__class__.__name__, {})
+    def __init__(self, strip):
+        Mode.__init__(self, self.__class__.__name__, strip, {})
 
     def update(self):
-        solid([0, 0, 0])
+        self.strip.solid([0, 0, 0])
 
     def load_cb(self, d):
         d["set_delay"](0.250)

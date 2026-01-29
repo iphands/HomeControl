@@ -7,7 +7,7 @@ DELAY = 0.0250
 
 strips = [
     Strip(1, "esp32c6-00.lan", 67),
-    Strip(2, "esp32c6-01.lan", 10),
+    Strip(2, "esp32c6-01.lan", 83),
 ]
 
 modes = [
@@ -28,27 +28,32 @@ def loop():
 
 
 def set_mode(m):
-    global mode
-    mode = strips[0].modes[m]
-    if hasattr(mode, "load_cb"):
-        mode.load_cb({"set_delay": set_delay})
+    global modes
+    modes[1] = strips[1].modes[m]
+    if hasattr(modes[1], "load_cb"):
+        modes[1].load_cb({"set_delay": set_delay})
+
+    modes[0] = strips[0].modes[m]
+    if hasattr(modes[0], "load_cb"):
+        modes[0].load_cb({"set_delay": set_delay})
 
 
 def get_current_mode():
-    return mode.name
+    return modes[0].name
 
 
 def get_modes():
-    return strip.modes
+    return strips[0].modes
 
 
 def get_opts():
-    return mode.get_opts()
+    return modes[0].get_opts()
 
 
 def set_opts(val):
-    global mode
-    mode.set_opts(val)
+    global modes
+    modes[1].set_opts(val)
+    # modes[0].set_opts(val)
 
 
 def get_delay():
@@ -61,11 +66,12 @@ def set_delay(num):
 
 
 def get_brightness():
-    return strip.get_brightness()
+    return strips[0].get_brightness()
 
 
 def set_brightness(num):
-    return strip.set_brightness(num)
+    strips[1].set_brightness(num)
+    return strips[0].set_brightness(num)
 
 
 def start_loop():

@@ -63,7 +63,8 @@ def opts():
         loop.set_opts(opts)
 
     for key, opt in orig_opts.items():
-        print(opt)
+        if isinstance(opt, int):
+            continue
         if opt["type"] == "color":
             rgb_hex = "#%02x%02x%02x" % tuple(opt["val"])
             opt["val"] = rgb_hex

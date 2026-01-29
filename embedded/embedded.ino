@@ -25,12 +25,14 @@
 #define LED_STRIP 1
 #define FAN 99
 
-#define DEBUG 1
+#define DEBUG 0
 
 const char* ssid = SSID;
 const char* password = PASS;
 const unsigned int udp_port = 4210;
 const unsigned short int offset = 2;
+
+// const int DEVICE_ID = 0b00000001;
 const int DEVICE_ID = 0b00000010;
 
 unsigned int tick_count = 0;
@@ -127,17 +129,16 @@ void do_led() {
   if ((DEVICE_ID != packet[ID])) {
     return;
   }
-  Serial.println("DEBUG3");
 
 #if DEBUG
-  Serial.printf("Got packet about me 0x%08lX == 0x%08lX\n", DEVICE_ID, packet[ID]);
+  Serial.printf("Got packet about me 0x%04lX == 0x%04lX\n", DEVICE_ID, packet[ID]);
 #endif
 
   // First time we should set LED count
   if (num_leds <= 0) {
     num_leds = packet[LED_LENGTH];
-    // FastLED.addLeds<WS2811, LED_DATA_PIN, BRG>(leds, num_leds);
-    // FastLED.setBrightness(50);
+    FastLED.addLeds<WS2811, LED_DATA_PIN, BRG>(leds, num_leds);
+    FastLED.setBrightness(50);
   }
 
 #if DEBUG
@@ -148,12 +149,12 @@ void do_led() {
   seq = packet[SEQ];
   FastLED.setBrightness(packet[BRIGHTNESS]);
 
-  for (int i = packet[LED_START]; i < num_leds; i++) {
-    leds[i].red = packet[(i * 3)   + 0];
-    leds[i].green = packet[(i * 3) + 1];
-    leds[i].blue = packet[(i * 3)  + 2];
+  for (int i = 0; i < num_leds; i++) {
+    leds[i].red = packet[(i * 3) + LED_START + 0];
+    leds[i].green = packet[(i * 3) + LED_START + 1];
+    leds[i].blue = packet[(i * 3) + LED_START + 2];
 #if DEBUG
-    Serial.printf("leds[%d]\n", leds[i]);
+    Serial.printf("leds[%d] 0x%04lX 0x%04lX 0x%04lX\n", i, leds[i].red, leds[i].green, leds[i].blue);
 #endif
   }
   FastLED.show();
