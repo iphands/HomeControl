@@ -8,6 +8,9 @@ This is a networked LED strip animation system with three main components:
 2. **Embedded Firmware** - ESP32/ESP8266 code that receives UDP packets and controls physical LED strips
 3. **External Test Suite** - A standalone test program that validates the system without sharing code with the server
 
+NOTE: There is now a Rust based clone of the server / api it exists at app_rs/
+The Rust and Python implementations should behave the same, and we can prove that by running the external test suite.
+
 ## Architecture
 
 ```
