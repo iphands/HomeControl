@@ -47,6 +47,16 @@ def hello_world():
     return send_from_directory('static', 'index.html')
 
 
+@app.route("/css/<path:filename>")
+def serve_css(filename):
+    return send_from_directory('static/css', filename)
+
+
+@app.route("/js/<path:filename>")
+def serve_js(filename):
+    return send_from_directory('static/js', filename)
+
+
 @app.route("/fanbuttons/<string:btn_id>")
 def fan_buttons(btn_id):
     if fan.send_op(btn_id):
