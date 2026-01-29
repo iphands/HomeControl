@@ -77,22 +77,6 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Check app venv exists
-if [[ ! -d "$APP_VENV" ]]; then
-    echo "Error: App virtual environment not found at $APP_VENV"
-    echo "Create it with: python -m venv $APP_VENV && source $APP_VENV/bin/activate && pip install -r requirements.txt"
-    exit 1
-fi
-
-# Check/create test venv
-if [[ ! -d "$TESTS_VENV" ]]; then
-    echo "Creating test virtual environment..."
-    python -m venv "$TESTS_VENV"
-    source "$TESTS_VENV/bin/activate"
-    pip install -q -r "$TESTS_DIR/requirements.txt"
-    deactivate
-fi
-
 # Function to run tests against a specific implementation
 run_tests() {
     local impl_name=$1

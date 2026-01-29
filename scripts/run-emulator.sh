@@ -88,15 +88,6 @@ if [[ "$IMPL" == "py" || "$IMPL" == "python" ]]; then
     fi
 fi
 
-# Check/create test venv
-if [[ ! -d "$TESTS_VENV" ]]; then
-    echo "Creating test virtual environment..."
-    python3 -m venv "$TESTS_VENV"
-    source "$TESTS_VENV/bin/activate"
-    pip install -q -r "$TESTS_DIR/requirements.txt"
-    deactivate
-fi
-
 # Check for tkinter in the venv (emulator needs it for GUI)
 if ! "$TESTS_VENV/bin/python" -c "import tkinter" 2>/dev/null; then
     echo "WARNING: tkinter not found in venv. Emulator GUI will fail."
