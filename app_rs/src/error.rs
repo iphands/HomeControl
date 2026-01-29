@@ -34,6 +34,7 @@ pub enum Error {
     LockPoisoned,
 
     /// Invalid configuration value.
+    #[allow(dead_code)]
     #[error("invalid configuration: {0}")]
     InvalidConfig(String),
 
@@ -95,6 +96,7 @@ impl ErrorResponse {
     }
 
     /// Creates a new error response with both message and code.
+    #[allow(dead_code)]
     pub fn with_code(error: impl Into<String>, code: impl Into<String>) -> Self {
         Self {
             error: error.into(),
