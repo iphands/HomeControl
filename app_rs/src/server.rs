@@ -358,15 +358,15 @@ pub async fn start_server(looper: Looper) -> std::io::Result<()> {
     let static_dir = std::env::current_dir()
         .ok()
         .and_then(|p| {
-            // If we're in app_rs, go up one level then into app/static
+            // If we're in app_rs, go up one level then into frontend
             if p.file_name()?.to_str()? == "app_rs" {
-                Some(p.parent()?.join("app").join("static"))
+                Some(p.parent()?.join("frontend"))
             } else {
                 // Otherwise assume we're in project root
-                Some(p.join("app").join("static"))
+                Some(p.join("frontend"))
             }
         })
-        .unwrap_or_else(|| std::path::PathBuf::from("../app/static"));
+        .unwrap_or_else(|| std::path::PathBuf::from("../frontend"));
 
     let static_dir_data = web::Data::new(static_dir.clone());
 
