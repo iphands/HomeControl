@@ -887,5 +887,302 @@ class TestSparkleMode:
         api.resume_looper()
 
 
+class TestPerStripAPI:
+    """Test per-strip API endpoints."""
+
+    def test_get_strip_mode(self, api):
+        """Test getting mode for a specific strip."""
+        mode = api.get_strip_mode(STRIP_1_ID)
+        assert isinstance(mode, str)
+        assert len(mode) > 0
+
+    def test_set_strip_mode(self, api):
+        """Test setting mode for a specific strip."""
+        original = api.get_strip_mode(STRIP_1_ID)
+
+        # Set strip 1 to Off
+        result = api.set_strip_mode(STRIP_1_ID, "Off")
+        assert result == "Off"
+        assert api.get_strip_mode(STRIP_1_ID) == "Off"
+
+        # Set strip 2 to a different mode
+        api.set_strip_mode(STRIP_2_ID, "Solid")
+        assert api.get_strip_mode(STRIP_2_ID) == "Solid"
+
+        # Verify strip 1 is still Off (independent)
+        assert api.get_strip_mode(STRIP_1_ID) == "Off"
+
+        # Restore
+        api.set_strip_mode(STRIP_1_ID, original)
+        api.set_strip_mode(STRIP_2_ID, original)
+
+    def test_get_strip_brightness(self, api):
+        """Test getting brightness for a specific strip."""
+        brightness = api.get_strip_brightness(STRIP_1_ID)
+        assert isinstance(brightness, int)
+        assert 0 <= brightness <= 255
+
+    def test_set_strip_brightness(self, api):
+        """Test setting brightness for a specific strip."""
+        original1 = api.get_strip_brightness(STRIP_1_ID)
+        original2 = api.get_strip_brightness(STRIP_2_ID)
+
+        # Set different brightness for each strip
+        api.set_strip_brightness(STRIP_1_ID, 100)
+        api.set_strip_brightness(STRIP_2_ID, 200)
+
+        assert api.get_strip_brightness(STRIP_1_ID) == 100
+        assert api.get_strip_brightness(STRIP_2_ID) == 200
+
+        # Restore
+        api.set_strip_brightness(STRIP_1_ID, original1)
+        api.set_strip_brightness(STRIP_2_ID, original2)
+
+    def test_get_strip_delay(self, api):
+        """Test getting delay for a specific strip."""
+        delay = api.get_strip_delay(STRIP_1_ID)
+        assert isinstance(delay, float)
+        assert delay > 0
+
+    def test_set_strip_delay(self, api):
+        """Test setting delay for a specific strip."""
+        original1 = api.get_strip_delay(STRIP_1_ID)
+        original2 = api.get_strip_delay(STRIP_2_ID)
+
+        # Set different delays for each strip
+        api.set_strip_delay(STRIP_1_ID, 0.05)
+        api.set_strip_delay(STRIP_2_ID, 0.1)
+
+        assert abs(api.get_strip_delay(STRIP_1_ID) - 0.05) < 0.001
+        assert abs(api.get_strip_delay(STRIP_2_ID) - 0.1) < 0.001
+
+        # Restore
+        api.set_strip_delay(STRIP_1_ID, original1)
+        api.set_strip_delay(STRIP_2_ID, original2)
+
+    def test_get_strip_opts(self, api):
+        """Test getting options for a specific strip."""
+        # Set to a mode with options
+        original = api.get_strip_mode(STRIP_1_ID)
+        api.set_strip_mode(STRIP_1_ID, "Solid")
+
+        opts = api.get_strip_opts(STRIP_1_ID)
+        assert isinstance(opts, dict)
+        assert "color" in opts
+
+        api.set_strip_mode(STRIP_1_ID, original)
+
+    def test_set_strip_opts(self, api):
+        """Test setting options for a specific strip."""
+        original_mode1 = api.get_strip_mode(STRIP_1_ID)
+        original_mode2 = api.get_strip_mode(STRIP_2_ID)
+
+        # Set both strips to Solid
+        api.set_strip_mode(STRIP_1_ID, "Solid")
+        api.set_strip_mode(STRIP_2_ID, "Solid")
+
+        # Set different colors
+        api.set_strip_opts(STRIP_1_ID, {"color": {"val": "#ff0000", "type": "color"}})
+        api.set_strip_opts(STRIP_2_ID, {"color": {"val": "#00ff00", "type": "color"}})
+
+        # Verify they're different
+        opts1 = api.get_strip_opts(STRIP_1_ID)
+        opts2 = api.get_strip_opts(STRIP_2_ID)
+
+        assert opts1["color"]["val"] == "#ff0000"
+        assert opts2["color"]["val"] == "#00ff00"
+
+        # Restore
+        api.set_strip_mode(STRIP_1_ID, original_mode1)
+        api.set_strip_mode(STRIP_2_ID, original_mode2)
+
+    def test_strips_response_includes_per_strip_state(self, api):
+        """Verify /strips response includes mode, brightness, delay."""
+        strips = api.get_strips()
+
+        for strip in strips:
+            assert "id" in strip
+            assert "hostname" in strip
+            assert "port" in strip
+            assert "num_leds" in strip
+            assert "mode" in strip
+            assert "brightness" in strip
+            assert "delay" in strip
+
+
+class TestPerStripUDP:
+    """Test that per-strip modes produce different UDP output."""
+
+    def test_different_modes_different_output(self, api, esp32_strip1, esp32_strip2):
+        """Verify strips with different modes produce different UDP patterns."""
+        original_mode1 = api.get_strip_mode(STRIP_1_ID)
+        original_mode2 = api.get_strip_mode(STRIP_2_ID)
+
+        # Pause and clear
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+        esp32_strip2.clear_packets()
+
+        # Set strip 1 to Off (all zeros) and strip 2 to Solid red
+        api.set_strip_mode(STRIP_1_ID, "Off")
+        api.set_strip_mode(STRIP_2_ID, "Solid")
+        api.set_strip_opts(STRIP_2_ID, {"color": {"val": "#ff0000", "type": "color"}})
+
+        # Run iterations
+        api.step_looper(3)
+        time.sleep(1.0)
+
+        # Get packets
+        packets1 = esp32_strip1.get_all_packets()
+        packets2 = esp32_strip2.get_all_packets()
+
+        assert len(packets1) > 0, "Strip 1 should receive packets"
+        assert len(packets2) > 0, "Strip 2 should receive packets"
+
+        # Strip 1 (Off) should have all LEDs off
+        packet1 = packets1[-1]
+        assert not packet1.has_any_lit(), "Off mode should have all LEDs off"
+
+        # Strip 2 (Solid red) should have LEDs lit
+        packet2 = packets2[-1]
+        assert packet2.has_any_lit(), "Solid mode should have LEDs lit"
+
+        # Check strip 2 is red
+        led = packet2.get_led(0)
+        assert led is not None
+        assert led[0] == 255, "Solid red should have R=255"
+        assert led[1] == 0, "Solid red should have G=0"
+        assert led[2] == 0, "Solid red should have B=0"
+
+        # Restore
+        api.set_strip_mode(STRIP_1_ID, original_mode1)
+        api.set_strip_mode(STRIP_2_ID, original_mode2)
+        api.resume_looper()
+
+    def test_different_brightness_in_packets(self, api, esp32_strip1, esp32_strip2):
+        """Verify strips with different brightness produce correct UDP packets."""
+        original_brightness1 = api.get_strip_brightness(STRIP_1_ID)
+        original_brightness2 = api.get_strip_brightness(STRIP_2_ID)
+
+        # Pause and clear
+        api.pause_looper()
+        time.sleep(0.3)
+        esp32_strip1.clear_packets()
+        esp32_strip2.clear_packets()
+
+        # Set different brightness
+        api.set_strip_brightness(STRIP_1_ID, 50)
+        api.set_strip_brightness(STRIP_2_ID, 200)
+
+        # Use Off mode for simplicity
+        api.set_strip_mode(STRIP_1_ID, "Off")
+        api.set_strip_mode(STRIP_2_ID, "Off")
+
+        # Run iterations
+        api.step_looper(2)
+        time.sleep(0.8)
+
+        # Get packets
+        packet1 = esp32_strip1.get_packet(timeout=2.0)
+        packet2 = esp32_strip2.get_packet(timeout=2.0)
+
+        assert packet1 is not None
+        assert packet2 is not None
+
+        assert packet1.brightness == 50, f"Strip 1 brightness should be 50, got {packet1.brightness}"
+        assert packet2.brightness == 200, f"Strip 2 brightness should be 200, got {packet2.brightness}"
+
+        # Restore
+        api.set_strip_brightness(STRIP_1_ID, original_brightness1)
+        api.set_strip_brightness(STRIP_2_ID, original_brightness2)
+        api.resume_looper()
+
+
+class TestGlobalAPIBackwardCompatibility:
+    """Test that global endpoints still work and apply to all strips."""
+
+    def test_global_mode_applies_to_all(self, api):
+        """Verify global set_mode applies to all strips."""
+        original = api.get_current_mode()
+
+        # Set mode globally
+        api.set_mode("Solid")
+
+        # Both strips should have the same mode
+        assert api.get_strip_mode(STRIP_1_ID) == "Solid"
+        assert api.get_strip_mode(STRIP_2_ID) == "Solid"
+
+        # Restore
+        api.set_mode(original)
+
+    def test_global_brightness_applies_to_all(self, api):
+        """Verify global set_brightness applies to all strips."""
+        original = api.get_brightness()
+
+        # Set brightness globally
+        api.set_brightness(150)
+
+        # Both strips should have the same brightness
+        assert api.get_strip_brightness(STRIP_1_ID) == 150
+        assert api.get_strip_brightness(STRIP_2_ID) == 150
+
+        # Restore
+        api.set_brightness(original)
+
+    def test_global_delay_applies_to_all(self, api):
+        """Verify global set_delay applies to all strips."""
+        original = api.get_delay()
+
+        # Set delay globally
+        api.set_delay(0.075)
+
+        # Both strips should have the same delay
+        assert abs(api.get_strip_delay(STRIP_1_ID) - 0.075) < 0.001
+        assert abs(api.get_strip_delay(STRIP_2_ID) - 0.075) < 0.001
+
+        # Restore
+        api.set_delay(original)
+
+    def test_global_opts_applies_to_all(self, api):
+        """Verify global set_opts applies to all strips."""
+        original_mode = api.get_current_mode()
+
+        # Set both strips to Solid
+        api.set_mode("Solid")
+
+        # Set opts globally
+        api.set_opts({"color": {"val": "#0000ff", "type": "color"}})
+
+        # Both strips should have the same opts
+        opts1 = api.get_strip_opts(STRIP_1_ID)
+        opts2 = api.get_strip_opts(STRIP_2_ID)
+
+        assert opts1["color"]["val"] == "#0000ff"
+        assert opts2["color"]["val"] == "#0000ff"
+
+        # Restore
+        api.set_mode(original_mode)
+
+    def test_per_strip_overrides_global(self, api):
+        """Verify per-strip settings can override global settings."""
+        original_mode = api.get_current_mode()
+
+        # Set all to Off globally
+        api.set_mode("Off")
+        assert api.get_strip_mode(STRIP_1_ID) == "Off"
+        assert api.get_strip_mode(STRIP_2_ID) == "Off"
+
+        # Override strip 1 to Solid
+        api.set_strip_mode(STRIP_1_ID, "Solid")
+
+        # Strip 1 should be Solid, strip 2 should still be Off
+        assert api.get_strip_mode(STRIP_1_ID) == "Solid"
+        assert api.get_strip_mode(STRIP_2_ID) == "Off"
+
+        # Restore
+        api.set_mode(original_mode)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

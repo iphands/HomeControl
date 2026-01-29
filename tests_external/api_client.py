@@ -28,6 +28,8 @@ class LEDControllerAPI:
         response.raise_for_status()
         return response.json()
 
+    # --- Global endpoints (apply to ALL strips) ---
+
     # Mode endpoints
     def get_modes(self) -> List[str]:
         """Get list of available modes."""
@@ -88,6 +90,40 @@ class LEDControllerAPI:
         if port is not None:
             data["port"] = port
         return self._post(f"/strips/{strip_id}", data)
+
+    # --- Per-strip endpoints ---
+
+    def get_strip_mode(self, strip_id: int) -> str:
+        """Get mode for a specific strip."""
+        return self._get(f"/strips/{strip_id}/mode")["mode"]
+
+    def set_strip_mode(self, strip_id: int, mode: str) -> str:
+        """Set mode for a specific strip."""
+        return self._post(f"/strips/{strip_id}/mode", {"mode": mode})["mode"]
+
+    def get_strip_brightness(self, strip_id: int) -> int:
+        """Get brightness for a specific strip."""
+        return self._get(f"/strips/{strip_id}/brightness")["brightness"]
+
+    def set_strip_brightness(self, strip_id: int, value: int) -> int:
+        """Set brightness for a specific strip (0-255)."""
+        return self._post(f"/strips/{strip_id}/brightness", {"brightness": value})["brightness"]
+
+    def get_strip_delay(self, strip_id: int) -> float:
+        """Get delay for a specific strip."""
+        return self._get(f"/strips/{strip_id}/delay")["delay"]
+
+    def set_strip_delay(self, strip_id: int, value: float) -> float:
+        """Set delay for a specific strip in seconds."""
+        return self._post(f"/strips/{strip_id}/delay", {"delay": value})["delay"]
+
+    def get_strip_opts(self, strip_id: int) -> Dict[str, Any]:
+        """Get options for a specific strip."""
+        return self._get(f"/strips/{strip_id}/opts")["opts"]
+
+    def set_strip_opts(self, strip_id: int, opts: Dict[str, Any]) -> Dict[str, Any]:
+        """Set options for a specific strip."""
+        return self._post(f"/strips/{strip_id}/opts", opts)["opts"]
 
     # Looper control (debug mode only)
     def get_looper_state(self) -> Dict[str, Any]:

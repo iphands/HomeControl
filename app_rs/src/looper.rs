@@ -7,10 +7,49 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub struct LooperState {
-    pub strips: Vec<Strip>,
-    pub modes: Vec<Box<dyn Mode + Send>>,
+const DEFAULT_DELAY: f64 = 0.025;
+
+pub struct StripState {
+    pub strip: Strip,
+    pub mode: Box<dyn Mode + Send>,
     pub delay: f64,
+    pub last_update: Instant,
+}
+
+impl StripState {
+    pub fn new(strip: Strip, mode_name: &str) -> Self {
+        let mode = create_mode(mode_name, &strip);
+        Self {
+            strip,
+            mode,
+            delay: DEFAULT_DELAY,
+            last_update: Instant::now(),
+        }
+    }
+
+    pub fn get_brightness(&self) -> u8 {
+        self.strip.get_brightness()
+    }
+
+    pub fn set_brightness(&mut self, val: u8) {
+        self.strip.set_brightness(val);
+    }
+
+    pub fn get_mode_name(&self) -> String {
+        self.mode.name().to_string()
+    }
+
+    pub fn get_opts(&self) -> HashMap<String, OptValue> {
+        self.mode.get_opts()
+    }
+
+    pub fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
+        self.mode.set_opts(opts);
+    }
+}
+
+pub struct LooperState {
+    pub strip_states: Vec<StripState>,
     pub debug_mode: bool,
     pub loop_state: String,        // "running" or "paused"
     pub iterations_remaining: i64, // -1 means unlimited
@@ -19,17 +58,18 @@ pub struct LooperState {
 
 impl LooperState {
     pub fn new(debug_mode: bool) -> Self {
-        let strips = vec![Strip::new(1, "esp32c6-00.lan", 67), Strip::new(2, "esp32c6-01.lan", 83)];
+        let strips = vec![
+            Strip::new(1, "esp32c6-00.lan", 67),
+            Strip::new(2, "esp32c6-01.lan", 83),
+        ];
 
-        let mut modes: Vec<Box<dyn Mode + Send>> = Vec::new();
-        for strip in &strips {
-            modes.push(create_mode("NightRider", strip));
-        }
+        let strip_states: Vec<StripState> = strips
+            .into_iter()
+            .map(|strip| StripState::new(strip, "NightRider"))
+            .collect();
 
         Self {
-            strips,
-            modes,
-            delay: 0.025,
+            strip_states,
             debug_mode,
             loop_state: "running".to_string(),
             iterations_remaining: -1,
@@ -37,66 +77,161 @@ impl LooperState {
         }
     }
 
+    // --- Global functions (apply to ALL strips for backward compatibility) ---
+
     pub fn get_current_mode_name(&self) -> String {
-        if let Some(mode) = self.modes.first() {
-            mode.name().to_string()
+        if let Some(state) = self.strip_states.first() {
+            state.get_mode_name()
         } else {
             "Unknown".to_string()
         }
     }
 
     pub fn set_mode(&mut self, mode_name: &str) {
-        let mut new_modes: Vec<Box<dyn Mode + Send>> = Vec::new();
-        for strip in &self.strips {
-            let mut mode = create_mode(mode_name, strip);
+        for strip_state in &mut self.strip_states {
+            let mut mode = create_mode(mode_name, &strip_state.strip);
             mode.load_cb(&|_d: f64| {
-                // We can't modify self.delay from here directly
-                // Store the request and handle it after
+                // Delay callback - handled below
             });
-            new_modes.push(mode);
+            strip_state.mode = mode;
         }
-        self.modes = new_modes;
 
-        // Apply delay changes from load_cb - since load_cb doesn't actually do anything
-        // in this simplified version, we'll just set known delays for specific modes
+        // Apply delay changes from load_cb
         match mode_name {
-            "Solid" | "White" | "Off" => self.delay = 0.250,
-            _ => self.delay = 0.025,
+            "Solid" | "White" | "Off" => {
+                for strip_state in &mut self.strip_states {
+                    strip_state.delay = 0.250;
+                }
+            }
+            _ => {
+                for strip_state in &mut self.strip_states {
+                    strip_state.delay = DEFAULT_DELAY;
+                }
+            }
         }
     }
 
     pub fn get_brightness(&self) -> u8 {
-        self.strips.first().map(|s| s.get_brightness()).unwrap_or(255)
+        self.strip_states.first().map(|s| s.get_brightness()).unwrap_or(255)
     }
 
     pub fn set_brightness(&mut self, val: u8) {
-        for strip in &mut self.strips {
-            strip.set_brightness(val);
+        for strip_state in &mut self.strip_states {
+            strip_state.set_brightness(val);
+        }
+    }
+
+    pub fn get_delay(&self) -> f64 {
+        self.strip_states.first().map(|s| s.delay).unwrap_or(DEFAULT_DELAY)
+    }
+
+    pub fn set_delay(&mut self, val: f64) {
+        for strip_state in &mut self.strip_states {
+            strip_state.delay = val;
         }
     }
 
     pub fn get_opts(&self) -> HashMap<String, OptValue> {
-        if let Some(mode) = self.modes.first() {
-            mode.get_opts()
+        if let Some(state) = self.strip_states.first() {
+            state.get_opts()
         } else {
             HashMap::new()
         }
     }
 
     pub fn set_opts(&mut self, opts: HashMap<String, OptValue>) {
-        for mode in &mut self.modes {
-            mode.set_opts(opts.clone());
+        for strip_state in &mut self.strip_states {
+            strip_state.set_opts(opts.clone());
+        }
+    }
+
+    // --- Per-strip functions ---
+
+    fn find_strip_state(&self, strip_id: u8) -> Option<usize> {
+        self.strip_states.iter().position(|s| s.strip.dev_id == strip_id)
+    }
+
+    pub fn get_strip_mode(&self, strip_id: u8) -> Option<String> {
+        self.find_strip_state(strip_id)
+            .map(|idx| self.strip_states[idx].get_mode_name())
+    }
+
+    pub fn set_strip_mode(&mut self, strip_id: u8, mode_name: &str) -> Option<String> {
+        if let Some(idx) = self.find_strip_state(strip_id) {
+            let strip_state = &mut self.strip_states[idx];
+            let mut mode = create_mode(mode_name, &strip_state.strip);
+
+            // Apply load_cb for delay
+            match mode_name {
+                "Solid" | "White" | "Off" => {
+                    strip_state.delay = 0.250;
+                }
+                _ => {
+                    strip_state.delay = DEFAULT_DELAY;
+                }
+            }
+
+            mode.load_cb(&|_d: f64| {});
+            strip_state.mode = mode;
+            Some(strip_state.get_mode_name())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_strip_brightness(&self, strip_id: u8) -> Option<u8> {
+        self.find_strip_state(strip_id)
+            .map(|idx| self.strip_states[idx].get_brightness())
+    }
+
+    pub fn set_strip_brightness(&mut self, strip_id: u8, val: u8) -> Option<u8> {
+        if let Some(idx) = self.find_strip_state(strip_id) {
+            self.strip_states[idx].set_brightness(val);
+            Some(self.strip_states[idx].get_brightness())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_strip_delay(&self, strip_id: u8) -> Option<f64> {
+        self.find_strip_state(strip_id)
+            .map(|idx| self.strip_states[idx].delay)
+    }
+
+    pub fn set_strip_delay(&mut self, strip_id: u8, val: f64) -> Option<f64> {
+        if let Some(idx) = self.find_strip_state(strip_id) {
+            self.strip_states[idx].delay = val;
+            Some(self.strip_states[idx].delay)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_strip_opts(&self, strip_id: u8) -> Option<HashMap<String, OptValue>> {
+        self.find_strip_state(strip_id)
+            .map(|idx| self.strip_states[idx].get_opts())
+    }
+
+    pub fn set_strip_opts(&mut self, strip_id: u8, opts: HashMap<String, OptValue>) -> Option<HashMap<String, OptValue>> {
+        if let Some(idx) = self.find_strip_state(strip_id) {
+            self.strip_states[idx].set_opts(opts);
+            Some(self.strip_states[idx].get_opts())
+        } else {
+            None
         }
     }
 
     pub fn get_strips(&self) -> Vec<StripInfo> {
-        self.strips
+        self.strip_states
             .iter()
             .map(|s| StripInfo {
-                id: s.dev_id,
-                hostname: s.udp_ip.clone(),
-                port: s.udp_port,
-                num_leds: s.num_leds,
+                id: s.strip.dev_id,
+                hostname: s.strip.udp_ip.clone(),
+                port: s.strip.udp_port,
+                num_leds: s.strip.num_leds,
+                mode: s.get_mode_name(),
+                brightness: s.get_brightness(),
+                delay: s.delay,
             })
             .collect()
     }
@@ -106,24 +241,26 @@ impl LooperState {
             return Err("debug mode not enabled".to_string());
         }
 
-        for strip in &mut self.strips {
-            if strip.dev_id == strip_id {
-                if let Some(h) = hostname {
-                    strip.udp_ip = h;
-                }
-                if let Some(p) = port {
-                    strip.udp_port = p;
-                }
-                return Ok(StripInfo {
-                    id: strip.dev_id,
-                    hostname: strip.udp_ip.clone(),
-                    port: strip.udp_port,
-                    num_leds: strip.num_leds,
-                });
+        if let Some(idx) = self.find_strip_state(strip_id) {
+            let strip_state = &mut self.strip_states[idx];
+            if let Some(h) = hostname {
+                strip_state.strip.udp_ip = h;
             }
+            if let Some(p) = port {
+                strip_state.strip.udp_port = p;
+            }
+            Ok(StripInfo {
+                id: strip_state.strip.dev_id,
+                hostname: strip_state.strip.udp_ip.clone(),
+                port: strip_state.strip.udp_port,
+                num_leds: strip_state.strip.num_leds,
+                mode: strip_state.get_mode_name(),
+                brightness: strip_state.get_brightness(),
+                delay: strip_state.delay,
+            })
+        } else {
+            Err(format!("strip {} not found", strip_id))
         }
-
-        Err(format!("strip {} not found", strip_id))
     }
 
     pub fn loop_control(&mut self, iterations: Option<i64>, next_state: Option<String>) -> LoopControlResult {
@@ -185,6 +322,9 @@ pub struct StripInfo {
     pub hostname: String,
     pub port: u16,
     pub num_leds: usize,
+    pub mode: String,
+    pub brightness: u8,
+    pub delay: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -222,8 +362,6 @@ impl Looper {
 
     fn loop_thread(state: Arc<Mutex<LooperState>>) {
         loop {
-            let start = Instant::now();
-
             // Check if we should wait (debug mode + paused)
             {
                 let state_guard = state.lock().unwrap();
@@ -240,18 +378,24 @@ impl Looper {
                 }
             }
 
-            // Update modes and send
+            let mut min_wait = Duration::from_secs(1); // Default max wait
+
+            // Update modes and send - per-strip timing
             {
                 let mut state_guard = state.lock().unwrap();
-                let len = state_guard.strips.len().min(state_guard.modes.len());
 
-                for i in 0..len {
-                    // We need to update each mode with its corresponding strip
-                    // Use unsafe to get mutable references to different elements
-                    let strip = &mut state_guard.strips[i] as *mut Strip;
-                    let mode = &mut state_guard.modes[i];
-                    unsafe {
-                        mode.update(&mut *strip);
+                for strip_state in &mut state_guard.strip_states {
+                    let elapsed = strip_state.last_update.elapsed();
+                    let delay_duration = Duration::from_secs_f64(strip_state.delay);
+
+                    if elapsed >= delay_duration {
+                        strip_state.mode.update(&mut strip_state.strip);
+                        strip_state.last_update = Instant::now();
+                    }
+
+                    let remaining = delay_duration.saturating_sub(strip_state.last_update.elapsed());
+                    if remaining < min_wait {
+                        min_wait = remaining;
                     }
                 }
 
@@ -267,15 +411,9 @@ impl Looper {
                 }
             }
 
-            // Calculate sleep time
-            let elapsed = start.elapsed();
-            let delay = {
-                let state_guard = state.lock().unwrap();
-                Duration::from_secs_f64(state_guard.delay)
-            };
-
-            if elapsed < delay {
-                thread::sleep(delay - elapsed);
+            // Sleep until next strip needs update
+            if min_wait > Duration::ZERO {
+                thread::sleep(min_wait);
             }
         }
     }

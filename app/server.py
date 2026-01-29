@@ -13,6 +13,34 @@ def simple_get_set(request, key, getter, setter):
     return jsonify({key: getter()})
 
 
+def _process_opts_for_response(opts):
+    """Convert options for API response (e.g., color arrays to hex)."""
+    result = {}
+    for key, opt in opts.items():
+        if isinstance(opt, int):
+            result[key] = opt
+            continue
+        if opt.get("type") == "color":
+            rgb_hex = "#%02x%02x%02x" % tuple(opt["val"])
+            result[key] = {**opt, "val": rgb_hex}
+        else:
+            result[key] = opt
+    return result
+
+
+def _process_opts_from_request(new_opts, orig_opts):
+    """Process options from API request (e.g., hex to color arrays)."""
+    for key in new_opts:
+        if new_opts[key]["type"] == "bool":
+            new_opts[key]["val"] = True if new_opts[key]["val"] == "true" else False
+        if new_opts[key]["type"] == "int":
+            try:
+                new_opts[key]["val"] = int(new_opts[key]["val"])
+            except:
+                new_opts[key]["val"] = orig_opts.get(key, {}).get("val", 0)
+    return new_opts
+
+
 @app.route("/")
 def hello_world():
     return redirect("/static/index.html")
@@ -52,30 +80,16 @@ def opts():
     if request.method == "POST":
         orig_opts = loop.get_opts()
         new_opts = request.get_json()
-        for key in new_opts:
-            if new_opts[key]["type"] == "bool":
-                new_opts[key]["val"] = True if new_opts[key]["val"] == "true" else False
-            if new_opts[key]["type"] == "int":
-                try:
-                    new_opts[key]["val"] = int(new_opts[key]["val"])
-                except:
-                    new_opts[key]["val"] = orig_opts.get(key, {}).get("val", 0)
+        new_opts = _process_opts_from_request(new_opts, orig_opts)
         loop.set_opts(new_opts)
 
-    # Fetch current opts (after any updates)
     current_opts = loop.get_opts()
-    for key, opt in current_opts.items():
-        if isinstance(opt, int):
-            continue
-        if opt["type"] == "color":
-            rgb_hex = "#%02x%02x%02x" % tuple(opt["val"])
-            opt["val"] = rgb_hex
-    return jsonify({"opts": current_opts})
+    return jsonify({"opts": _process_opts_for_response(current_opts)})
 
 
 @app.route("/strips", methods=["GET"])
 def strips():
-    """Return information about configured LED strips."""
+    """Return information about configured LED strips with per-strip state."""
     return jsonify({"strips": loop.get_strips()})
 
 
@@ -94,6 +108,77 @@ def configure_strip(strip_id):
         port=data.get("port"),
     )
     return jsonify(result)
+
+
+# --- Per-strip endpoints ---
+
+@app.route("/strips/<int:strip_id>/mode", methods=["GET", "POST"])
+def strip_mode(strip_id):
+    """Get or set mode for a specific strip."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        mode_name = data.get("mode")
+        result = loop.set_strip_mode(strip_id, mode_name)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found or invalid mode"}), 404
+        return jsonify({"mode": result})
+    else:
+        result = loop.get_strip_mode(strip_id)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        return jsonify({"mode": result})
+
+
+@app.route("/strips/<int:strip_id>/brightness", methods=["GET", "POST"])
+def strip_brightness(strip_id):
+    """Get or set brightness for a specific strip."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        val = data.get("brightness")
+        result = loop.set_strip_brightness(strip_id, val)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        return jsonify({"brightness": result})
+    else:
+        result = loop.get_strip_brightness(strip_id)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        return jsonify({"brightness": result})
+
+
+@app.route("/strips/<int:strip_id>/delay", methods=["GET", "POST"])
+def strip_delay(strip_id):
+    """Get or set delay for a specific strip."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        val = data.get("delay")
+        result = loop.set_strip_delay(strip_id, val)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        return jsonify({"delay": result})
+    else:
+        result = loop.get_strip_delay(strip_id)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        return jsonify({"delay": result})
+
+
+@app.route("/strips/<int:strip_id>/opts", methods=["GET", "POST"])
+def strip_opts(strip_id):
+    """Get or set options for a specific strip."""
+    if request.method == "POST":
+        orig_opts = loop.get_strip_opts(strip_id)
+        if orig_opts is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        new_opts = request.get_json() or {}
+        new_opts = _process_opts_from_request(new_opts, orig_opts)
+        result = loop.set_strip_opts(strip_id, new_opts)
+        return jsonify({"opts": _process_opts_for_response(result)})
+    else:
+        result = loop.get_strip_opts(strip_id)
+        if result is None:
+            return jsonify({"error": f"strip {strip_id} not found"}), 404
+        return jsonify({"opts": _process_opts_for_response(result)})
 
 
 @app.route("/looper", methods=["GET", "POST"])

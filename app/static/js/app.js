@@ -4,108 +4,216 @@
   var app = angular.module('ColorApp', ['ngResource', 'ngMaterial']),
       priv = {
         events: {
-          modeChanged: 'modeChanged'
+          modeChanged: 'modeChanged',
+          stripsLoaded: 'stripsLoaded'
         }
       };
 
   app.config(['$resourceProvider', function ($resourceProvider) {
-    // Don't strip trailing slashes from calculated URLs
     $resourceProvider.defaults.stripTrailingSlashes = false;
   }]);
 
-  app.controller('FanCtrl', function FanController($scope, Fan) {
-    $scope.press = function (op) { Fan.get({op: op}); };
-  });
+  // Factories for API resources (defined first so controllers can use them)
 
-  app.controller('ModeCtrl', function ModeController($scope, Mode, $rootScope) {
+  app.factory('Fan', ['$resource', function ($resource) {
+    return $resource('/fanbuttons/:op', { op: '@op' }, {});
+  }]);
+
+  app.factory('Mode', ['$resource', function ($resource) {
+    return $resource('/modes/:current', { current: '@current' }, {});
+  }]);
+
+  app.factory('Delay', ['$resource', function ($resource) {
+    return $resource('/delay', {}, {});
+  }]);
+
+  app.factory('Brightness', ['$resource', function ($resource) {
+    return $resource('/brightness', {}, {});
+  }]);
+
+  app.factory('Opts', ['$resource', function ($resource) {
+    return $resource('/opts', {}, {});
+  }]);
+
+  app.factory('Strips', ['$resource', function ($resource) {
+    return $resource('/strips', {}, {});
+  }]);
+
+  // Per-strip service factory
+  app.factory('StripService', ['$resource', function ($resource) {
+    return function (stripId) {
+      return {
+        Mode: $resource('/strips/' + stripId + '/mode', {}, {}),
+        Brightness: $resource('/strips/' + stripId + '/brightness', {}, {}),
+        Delay: $resource('/strips/' + stripId + '/delay', {}, {}),
+        Opts: $resource('/strips/' + stripId + '/opts', {}, {})
+      };
+    };
+  }]);
+
+  // Main controller - loads strips data
+  app.controller('MainCtrl', ['$scope', '$rootScope', 'Strips', 'Mode', function ($scope, $rootScope, Strips, Mode) {
+    $scope.strips = [];
+
+    function loadStrips() {
+      Strips.get(function (res) {
+        $scope.strips = res.strips;
+        $rootScope.$broadcast(priv.events.stripsLoaded, res.strips);
+      });
+    }
+
+    // Load modes for child controllers
+    Mode.query(function (res) {
+      $scope.modes = res;
+      $rootScope.modes = res;
+    });
+
+    loadStrips();
+
+    // Refresh strips periodically
+    $scope.$on(priv.events.modeChanged, function () {
+      loadStrips();
+    });
+  }]);
+
+  // Fan controller
+  app.controller('FanCtrl', ['$scope', 'Fan', function ($scope, Fan) {
+    $scope.press = function (op) { Fan.get({op: op}); };
+  }]);
+
+  // Global controls controller
+  app.controller('GlobalCtrl', ['$scope', '$rootScope', 'Mode', 'Brightness', 'Delay', 'Opts', function ($scope, $rootScope, Mode, Brightness, Delay, Opts) {
+    $scope.modes = $rootScope.modes || [];
+    $scope.mode = '';
+    $scope.brightness = 255;
+    $scope.delay = 25;
+    $scope.opts = {};
+
+    $scope.hasOpts = function () {
+      return Object.keys($scope.opts).length > 0;
+    };
+
     $scope.setMode = function () {
       new Mode({mode: $scope.mode}).$save({current: 'current'}, function () {
         $rootScope.$broadcast(priv.events.modeChanged);
+        loadOpts();
       });
     };
 
-    Mode.get({current: 'current'}, function (res) {
-      $scope.mode = res.mode;
-    });
-
-    Mode.query(function (res) {
-      $scope.modes = res;
-    });
-  });
-
-  priv.sliderCtrl = function (key, multiplier, $scope, Api) {
-    multiplier = multiplier || 1;
-
-    $scope.slider = {
-      value: 150,
-      options: {
-        onChange: function () { $scope.set(); },
-        floor: 0,
-        ceil: 500
-      }
+    $scope.setBrightness = function () {
+      new Brightness({brightness: parseInt($scope.brightness)}).$save({});
     };
 
-    $scope.set = function () {
-      var obj = {};
-      obj[key] = $scope.slider.value / multiplier;
-      new Api(obj).$save({});
+    $scope.setDelay = function () {
+      new Delay({delay: $scope.delay / 1000}).$save({});
     };
 
-    $scope.loadData = function () {
-      Api.get(function (res) {
-        $scope.slider.value = res[key] * multiplier;
-      });
-    };
-
-    $scope.$on(priv.events.modeChanged, $scope.loadData);
-    $scope.loadData();
-  };
-
-  app.controller('DelayCtrl', function ($scope, Delay) {
-    priv.sliderCtrl('delay', 1000, $scope, Delay);
-  });
-
-  app.controller('BrightnessCtrl', function ($scope, Brightness) {
-    priv.sliderCtrl('brightness', 1, $scope, Brightness);
-  });
-
-  app.controller('OptsCtrl', function($scope, Opts) {
-    $scope.loadData = function () {
-      Opts.get(function (res) {
-        $scope.opts = res.opts;
-      });
-    };
-
-    $scope.changeOpt = function (k, v) {
+    $scope.changeOpt = function (k) {
       var obj = {};
       obj[k] = $scope.opts[k];
       new Opts(obj).$save(function (res) {
-        //$scope.opts = res.opts;
+        // Update opts from response
       });
     };
 
-    $scope.$on(priv.events.modeChanged, $scope.loadData);
-    $scope.loadData();
-  });
+    function loadOpts() {
+      Opts.get(function (res) {
+        $scope.opts = res.opts;
+      });
+    }
 
-  app.factory('Fan', function ($resource) {
-    return $resource('/fanbuttons/:op', { op: '@op' }, {});
-  });
+    function loadData() {
+      Mode.get({current: 'current'}, function (res) {
+        $scope.mode = res.mode;
+      });
+      Mode.query(function (res) {
+        $scope.modes = res;
+      });
+      Brightness.get(function (res) {
+        $scope.brightness = res.brightness;
+      });
+      Delay.get(function (res) {
+        $scope.delay = Math.round(res.delay * 1000);
+      });
+      loadOpts();
+    }
 
-  app.factory('Mode', function ($resource) {
-    return $resource('/modes/:current', { current: '@current' }, {});
-  });
+    loadData();
+  }]);
 
-  app.factory('Delay', function ($resource) {
-    return $resource('/delay', {}, {});
-  });
+  // Per-strip controller
+  app.controller('StripCtrl', ['$scope', '$rootScope', 'StripService', function ($scope, $rootScope, StripService) {
+    var stripId = $scope.strip.id;
+    var service = StripService(stripId);
 
-  app.factory('Brightness', function ($resource) {
-    return $resource('/brightness', {}, {});
-  });
+    $scope.modes = $rootScope.modes || [];
+    $scope.stripMode = $scope.strip.mode;
+    $scope.stripBrightness = $scope.strip.brightness;
+    $scope.stripDelay = Math.round($scope.strip.delay * 1000);
+    $scope.stripOpts = {};
+    $scope.isCollapsed = false;
 
-  app.factory('Opts', function ($resource) {
-    return $resource('/opts', {}, {});
-  });
+    $scope.hasOpts = function () {
+      return Object.keys($scope.stripOpts).length > 0;
+    };
+
+    $scope.toggleCollapse = function () {
+      $scope.isCollapsed = !$scope.isCollapsed;
+    };
+
+    $scope.setMode = function () {
+      service.Mode.save({mode: $scope.stripMode}, function () {
+        loadOpts();
+      });
+    };
+
+    $scope.setBrightness = function () {
+      service.Brightness.save({brightness: parseInt($scope.stripBrightness)});
+    };
+
+    $scope.setDelay = function () {
+      service.Delay.save({delay: $scope.stripDelay / 1000});
+    };
+
+    $scope.changeOpt = function (k) {
+      var obj = {};
+      obj[k] = $scope.stripOpts[k];
+      service.Opts.save(obj);
+    };
+
+    function loadOpts() {
+      service.Opts.get(function (res) {
+        $scope.stripOpts = res.opts;
+      });
+    }
+
+    function loadData() {
+      service.Mode.get(function (res) {
+        $scope.stripMode = res.mode;
+      });
+      service.Brightness.get(function (res) {
+        $scope.stripBrightness = res.brightness;
+      });
+      service.Delay.get(function (res) {
+        $scope.stripDelay = Math.round(res.delay * 1000);
+      });
+      loadOpts();
+    }
+
+    // Update modes list when available
+    $scope.$watch(function () { return $rootScope.modes; }, function (newVal) {
+      if (newVal) {
+        $scope.modes = newVal;
+      }
+    });
+
+    // Load initial data
+    loadData();
+
+    // Refresh on global mode change
+    $scope.$on(priv.events.modeChanged, function () {
+      loadData();
+    });
+  }]);
 
 }());
