@@ -45,6 +45,12 @@ Multi-strip support via device ID filtering.
 
 ## Commands
 
+### Docs
+In the app_rs/ Rust project use `cargo docs --no-deps`
+Be sure and fix the warnings.
+Then you can look at the docs to quickly learn about the project ABI.
+The docs will be in app_rs/target/doc/homectrl (If you read this in bulk compact the data when taking in context its too much keep it all around)
+
 
 ### Formatting
 Use:  ./scripts/format.sh

@@ -12,8 +12,7 @@
 //! - [`Breathe`] - Pulsing brightness effect
 //! - [`Solid`] - Static single color
 //! - [`PatternMode`] - Alternating color patterns (Christmas, MardiGras, RGB)
-//! - [`White`] - All white
-//! - [`Off`] - All LEDs off
+//! - [`FixedColor`] - Static color modes (White, Off)
 
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
