@@ -58,6 +58,21 @@ print('  Strip 2:', d['strips'][1]['hostname'], ':', d['strips'][1]['port'])
 "
 }
 
+# Set mode to RainbowColor for both strips
+set_rainbow_mode() {
+  echo "Setting RainbowColor mode for strips..."
+
+  curl -s -X POST "http://localhost:$SERVER_PORT/api/strips/1/mode" \
+    -H "Content-Type: application/json" \
+    -d "{\"mode\": \"RainbowColor\"}" > /dev/null
+
+  curl -s -X POST "http://localhost:$SERVER_PORT/api/strips/2/mode" \
+    -H "Content-Type: application/json" \
+    -d "{\"mode\": \"RainbowColor\"}" > /dev/null
+
+  echo "Mode set to RainbowColor for both strips"
+}
+
 # Check for tkinter
 check_tkinter() {
   if ! "$TESTS_VENV/bin/python" -c "import tkinter" 2>/dev/null; then
@@ -131,6 +146,9 @@ main() {
 
   # Configure strips to point to emulator
   configure_strips
+  
+  # Set RainbowColor mode
+  set_rainbow_mode
 
   echo ""
   echo "========================================"
