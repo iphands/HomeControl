@@ -146,7 +146,7 @@ main() {
 
   # Configure strips to point to emulator
   configure_strips
-  
+
   # Set RainbowColor mode
   set_rainbow_mode
 
