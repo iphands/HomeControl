@@ -20,17 +20,24 @@ show_help() {
   exit 0
 }
 
-# Format Rust code
-format_rust() {
-  echo "Formatting Rust code..."
+format_rust_app_rs() {
+  echo "Formatting Rust code (app_rs)..."
   pushd "$APP_RS_DIR" > /dev/null
-  rustfmt $(find src -type f -name '*.rs')
+  cargo fmt
   popd > /dev/null
-  echo "Rust formatting complete"
+  echo "Rust formatting complete (app_rs)"
+}
+
+format_rust_emu() {
+  echo "Formatting Rust code (emu)..."
+  pushd "$PROJECT_ROOT/emu" > /dev/null
+  cargo fmt
+  popd > /dev/null
+  echo "Rust formatting complete (emu)"
 }
 
 # Format Python code
-format_python() {
+format_python_api() {
   echo "Formatting Python code..."
   check_python_venv || exit 1
 
@@ -41,24 +48,11 @@ format_python() {
   echo "Python formatting complete"
 }
 
-# Main function
 main() {
-  # Check for help flag
   check_help "$@" && show_help
-
-  echo "========================================"
-  echo "Formatting Code"
-  echo "========================================"
-  echo ""
-
-  format_rust
-  echo ""
-  format_python
-
-  echo ""
-  echo "========================================"
-  echo "Formatting Complete"
-  echo "========================================"
+  format_rust_app_rs
+  format_rust_emu
+  format_python_api
 }
 
 # Run main

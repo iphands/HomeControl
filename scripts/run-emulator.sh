@@ -5,7 +5,7 @@
 # This script:
 # 1. Starts the server in debug mode (to allow strip configuration)
 # 2. Configures strips to send to localhost where the emulator listens
-# 3. Starts the LED strip emulator GUI
+# 3. Builds and starts the Rust LED strip emulator GUI
 # 4. Stops the server when the emulator exits
 #
 
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Script-specific variables
-EMU_DIR="$TESTS_DIR/light_strip_emu"
+EMU_DIR="$PROJECT_ROOT/emu"
 SERVER_LOG="/tmp/led-controller-emulator-server.log"
 SERVER_PID=""
 EMU_PORT=4210
@@ -58,19 +58,27 @@ print('  Strip 2:', d['strips'][1]['hostname'], ':', d['strips'][1]['port'])
 "
 }
 
-# Set mode to RainbowColor for both strips
+# Set mode to RainbowCycle for both strips
 set_rainbow_mode() {
-  echo "Setting RainbowColor mode for strips..."
+  echo "Setting RainbowCycle mode for strips..."
 
   curl -s -X POST "http://localhost:$SERVER_PORT/api/strips/1/mode" \
     -H "Content-Type: application/json" \
-    -d "{\"mode\": \"RainbowColor\"}" > /dev/null
+    -d "{\"mode\": \"RainbowCycle\"}" > /dev/null
 
   curl -s -X POST "http://localhost:$SERVER_PORT/api/strips/2/mode" \
     -H "Content-Type: application/json" \
-    -d "{\"mode\": \"RainbowColor\"}" > /dev/null
+    -d "{\"mode\": \"RainbowCycle\"}" > /dev/null
 
-  echo "Mode set to RainbowColor for both strips"
+  echo "Mode set to RainbowCycle for both strips"
+}
+
+# Build the Rust emulator
+build_emulator() {
+  echo "Building Rust emulator..."
+  cd "$EMU_DIR"
+  cargo build --release
+  echo "Build complete"
 }
 
 # Main function
@@ -91,15 +99,19 @@ main() {
 
   # Display startup info
   echo "========================================"
-  echo "LED Strip Emulator"
-  echo "Implementation: $IMPL_NAME"
+  echo "LED Strip Emulator (Rust + GPU)"
+  echo "Server Implementation: $IMPL_NAME"
   echo "========================================"
   echo ""
   echo "Project root: $PROJECT_ROOT"
   echo "Server dir:   $IMPL_DIR"
+  echo "Emulator dir: $EMU_DIR"
   echo "Emulator port: $EMU_PORT"
   echo "Server log:   $SERVER_LOG"
   echo ""
+
+  # Build the emulator first
+  build_emulator
 
   # Kill any existing server
   echo "Checking for existing servers..."
@@ -131,7 +143,7 @@ main() {
   # Configure strips to point to emulator
   configure_strips
 
-  # Set RainbowColor mode
+  # Set RainbowCycle mode
   set_rainbow_mode
 
   echo ""
@@ -141,13 +153,9 @@ main() {
   echo "========================================"
   echo ""
 
-  # Start the emulator (this blocks until user closes it)
-  pwd
-  source ./venv/bin/activate
-
-  pushd "$EMU_DIR"
-  which python
-  python emulator.py --port "$EMU_PORT"
+  # Run the Rust emulator (this blocks until user closes it)
+  echo "Starting LED Strip Emulator..."
+  "$EMU_DIR/target/release/led-strip-emulator"
 
   echo ""
   echo "Emulator closed."

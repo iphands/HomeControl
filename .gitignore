@@ -3,6 +3,7 @@
 /tests_external/venv
 /tests_external/.pytest_cache
 /app_rs/target
+/emu/target
 /tmp
 __pycache__
 
