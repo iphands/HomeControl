@@ -126,14 +126,12 @@ void main() {
 }
 """
 
-# Saturation/HDR post-process shader
+# Saturation post-process shader - only affects LED area
 POSTPROCESS_FRAGMENT = """
 #version 330
 
 uniform sampler2D scene_texture;
 uniform float saturation;
-uniform float exposure;
-uniform float gamma;
 
 in vec2 uv;
 out vec4 fragColor;
@@ -157,19 +155,10 @@ vec3 hsv_to_rgb(vec3 c) {
 void main() {
     vec4 color = texture(scene_texture, uv);
     
-    // Apply exposure
-    vec3 rgb = color.rgb * exposure;
-    
-    // Apply saturation boost using HSV (faster than HSL)
-    vec3 hsv = rgb_to_hsv(rgb);
+    // Apply saturation boost using HSV
+    vec3 hsv = rgb_to_hsv(color.rgb);
     hsv.y = clamp(hsv.y * saturation, 0.0, 1.0);
-    rgb = hsv_to_rgb(hsv);
-    
-    // Tone mapping (simple Reinhard)
-    rgb = rgb / (rgb + vec3(1.0));
-    
-    // Gamma correction
-    rgb = pow(rgb, vec3(1.0 / gamma));
+    vec3 rgb = hsv_to_rgb(hsv);
     
     fragColor = vec4(rgb, 1.0);
 }
@@ -315,13 +304,11 @@ class LEDStripEmulator(arcade.Window):
         self._pending_updates: List[tuple] = []
         self._update_lock = threading.Lock()
 
-        # Effect parameters
+        # Effect parameters (only affect LEDs, not UI)
         self.bloom_intensity = 1.5
         self.bloom_radius = 2.0
         self.bloom_threshold = 0.1
         self.saturation = 1.8
-        self.exposure = 1.2
-        self.gamma = 1.0
         self.led_glow_size = 2.0
 
         # Initialize after OpenGL context is ready
@@ -453,26 +440,6 @@ class LEDStripEmulator(arcade.Window):
             sat_label.text = f"Saturation: {self.saturation:.1f}"
         panel_layout.add(sat_slider)
 
-        # Exposure slider
-        exp_label = UILabel(text=f"Exposure: {self.exposure:.1f}", font_size=10)
-        panel_layout.add(exp_label)
-        exp_slider = UISlider(value=self.exposure, min_value=0.5, max_value=3.0, width=220)
-        @exp_slider.event("on_change")
-        def on_exp_change(event):
-            self.exposure = exp_slider.value
-            exp_label.text = f"Exposure: {self.exposure:.1f}"
-        panel_layout.add(exp_slider)
-
-        # Gamma slider
-        gamma_label = UILabel(text=f"Gamma: {self.gamma:.2f}", font_size=10)
-        panel_layout.add(gamma_label)
-        gamma_slider = UISlider(value=self.gamma, min_value=0.5, max_value=2.5, width=220)
-        @gamma_slider.event("on_change")
-        def on_gamma_change(event):
-            self.gamma = gamma_slider.value
-            gamma_label.text = f"Gamma: {self.gamma:.2f}"
-        panel_layout.add(gamma_slider)
-
         # LED Glow Size slider
         glow_label = UILabel(text=f"LED Glow: {self.led_glow_size:.1f}", font_size=10)
         panel_layout.add(glow_label)
@@ -592,14 +559,32 @@ class LEDStripEmulator(arcade.Window):
             # Draw dim/off LED
             arcade.draw_circle_filled(x, y, self.LED_SIZE / 2, (r, g, b))
 
-    def _draw_scene_to_buffer(self):
-        """Draw the LED scene to the offscreen buffer."""
+    def _draw_leds_to_buffer(self):
+        """Draw only LEDs to the offscreen buffer (gets bloomed)."""
         self.scene_buffer.use()
         self.scene_buffer.clear()
-        # Draw background
+        # Draw dark background
         arcade.draw_lbwh_rectangle_filled(0, 0, self.width, self.height, (10, 10, 10))
 
         # Calculate starting position
+        y = self.height - self.HEADER_HEIGHT - self.STRIP_PADDING
+
+        # Draw each strip's LEDs only (no text)
+        for config in self.strips_config:
+            strip_id = config['id']
+            strip = self.strips[strip_id]
+
+            # Draw LEDs
+            led_y = y - 25
+            for i, (r, g, b) in enumerate(strip.colors[:strip.num_leds]):
+                led_x = self.STRIP_PADDING + self.LED_SPACING + i * (self.LED_SIZE + self.LED_SPACING) + self.LED_SIZE / 2
+                self._draw_led_circle(led_x, led_y, r, g, b, strip.brightness)
+
+            # Move down for next strip
+            y -= self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT + self.STRIP_PADDING + 20
+
+    def _draw_text_overlay(self):
+        """Draw text and UI labels directly to screen (no bloom)."""
         content_width = self.width - self.CONTROLS_WIDTH
         y = self.height - self.HEADER_HEIGHT - self.STRIP_PADDING
 
@@ -614,7 +599,7 @@ class LEDStripEmulator(arcade.Window):
             bold=True,
         )
 
-        # Draw each strip
+        # Draw each strip's text
         for config in self.strips_config:
             strip_id = config['id']
             strip = self.strips[strip_id]
@@ -629,13 +614,8 @@ class LEDStripEmulator(arcade.Window):
                 font_size=11,
             )
 
-            # Draw LEDs
-            led_y = y - 25
-            for i, (r, g, b) in enumerate(strip.colors[:strip.num_leds]):
-                led_x = self.STRIP_PADDING + self.LED_SPACING + i * (self.LED_SIZE + self.LED_SPACING) + self.LED_SIZE / 2
-                self._draw_led_circle(led_x, led_y, r, g, b, strip.brightness)
-
             # Status text
+            led_y = y - 25
             status_y = led_y - 25
             status_color = (136, 255, 136)  # Green like original
             arcade.draw_text(
@@ -660,8 +640,8 @@ class LEDStripEmulator(arcade.Window):
 
     def on_draw(self):
         """Render the screen with post-processing effects."""
-        # Step 1: Draw scene to offscreen buffer
-        self._draw_scene_to_buffer()
+        # Step 1: Draw only LEDs to offscreen buffer
+        self._draw_leds_to_buffer()
 
         # Step 2: Horizontal blur pass
         self.blur_h_buffer.use()
@@ -683,17 +663,20 @@ class LEDStripEmulator(arcade.Window):
         self.blur_v_program['bloom_intensity'] = self.bloom_intensity
         self.quad_geometry.render(self.blur_v_program)
 
-        # Step 4: Apply final post-processing (saturation, exposure, gamma)
-        self.use()  # Switch to default framebuffer
+        # Step 4: Render to screen with saturation
+        self.use()
         self.clear()
+        
+        # Draw bloomed LEDs with saturation to entire screen
         self.blur_v_buffer.color_attachments[0].use(0)
         self.postprocess_program['scene_texture'] = 0
         self.postprocess_program['saturation'] = self.saturation
-        self.postprocess_program['exposure'] = self.exposure
-        self.postprocess_program['gamma'] = self.gamma
         self.quad_geometry.render(self.postprocess_program)
 
-        # Draw UI on top (no post-processing)
+        # Step 5: Draw text overlay (not affected by bloom)
+        self._draw_text_overlay()
+
+        # Step 6: Draw UI controls (not affected by bloom)
         self.ui_manager.draw()
 
     def on_resize(self, width: int, height: int):
