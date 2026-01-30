@@ -61,6 +61,26 @@ Use:  ./scripts/format.sh
 cd tests_external && pytest test_led_controller.py -v -k <test_name>
 ```
 
+## Running Python
+You must run Python after sourcing venv!
+There are two venv set up
+- venv/ in the repo root used for Python impl of the API (ie running app/...)
+- tests_external/venv/ used for running any Python in tests_external/...
+
+## Container notes
+Check if you are running on a container! A file: /home/iphands/IM_A_CONTAINER will exist if you are.
+Otherwise you are not
+
+### Managing venv in container
+If you are DONT try to manage venv (NO pip install) I will do that if you are running in a container.
+You can try to source the venv file
+You can edit the requirements.txt
+But I will need to be the one running pip install's
+
+### Running GUI things in the container
+In this env you wont be able to launch/run GUI apps.
+Please tell me to do so and I can run it for you (and share output).
+
 ## Code Style
 
 ### Rust
@@ -73,6 +93,7 @@ cd tests_external && pytest test_led_controller.py -v -k <test_name>
 - Black formatter (default 88 chars)
 - Group/sort imports (stdlib → third-party → local)
 - snake_case functions, PascalCase classes
+- Use click library for all arg parsing
 
 ### Git
 - Prefix: `[rs]` Rust, `[py]` Python, `[test]` tests
