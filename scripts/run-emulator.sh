@@ -73,15 +73,6 @@ set_rainbow_mode() {
   echo "Mode set to RainbowColor for both strips"
 }
 
-# Check for tkinter
-check_tkinter() {
-  if ! "$TESTS_VENV/bin/python" -c "import tkinter" 2>/dev/null; then
-    echo "WARNING: tkinter not found in venv. Emulator GUI will fail."
-    echo "The server will still start and you can use the web UI at http://localhost:$SERVER_PORT"
-    echo ""
-  fi
-}
-
 # Main function
 main() {
   # Set trap for cleanup
@@ -97,13 +88,6 @@ main() {
       "Run the LED Strip Emulator with the server."
     exit 1
   fi
-
-  # Check virtual environments
-  if [[ "$IMPL" == "python" ]]; then
-    check_python_venv || exit 1
-  fi
-  check_tests_venv || exit 1
-  check_tkinter
 
   # Display startup info
   echo "========================================"
@@ -158,9 +142,8 @@ main() {
   echo ""
 
   # Start the emulator (this blocks until user closes it)
-  pushd tests_external
+  pwd
   source ./venv/bin/activate
-  popd
 
   pushd "$EMU_DIR"
   which python
