@@ -716,8 +716,8 @@ class LEDStripEmulator(arcade.Window):
             if hasattr(self, 'pps_label'):
                 self.pps_label.text = f"Packets/sec: {self.packets_per_second}"
 
-    def _draw_led_circle(self, x: float, y: float, r: int, g: int, b: int, brightness: int):
-        """Draw a single LED with glow effect."""
+    def _draw_led_rectangle(self, x: float, y: float, r: int, g: int, b: int, brightness: int):
+        """Draw a single LED rectangle with glow effect (matching old tkinter version)."""
         # Apply brightness
         factor = brightness / 255.0
         r = int(r * factor)
@@ -733,12 +733,16 @@ class LEDStripEmulator(arcade.Window):
                 glow_r = int(min(255, r * glow_factor))
                 glow_g = int(min(255, g * glow_factor))
                 glow_b = int(min(255, b * glow_factor))
-                glow_size = self.LED_SIZE / 2 + i * 2.5
+                glow_size = self.LED_SIZE + i * 2.5
                 alpha = int(80 * glow_factor)
-                arcade.draw_circle_filled(x, y, glow_size, (glow_r, glow_g, glow_b, alpha))
+                glow_left = x - glow_size / 2
+                glow_bottom = y - glow_size / 2
+                arcade.draw_lbwh_rectangle_filled(glow_left, glow_bottom, glow_size, glow_size, (glow_r, glow_g, glow_b, alpha))
 
-            # Draw main LED circle
-            arcade.draw_circle_filled(x, y, self.LED_SIZE / 2, (r, g, b))
+            # Draw main LED rectangle (square like old version)
+            led_left = x - self.LED_SIZE / 2
+            led_bottom = y - self.LED_SIZE / 2
+            arcade.draw_lbwh_rectangle_filled(led_left, led_bottom, self.LED_SIZE, self.LED_SIZE, (r, g, b))
 
             # Draw bright center highlight for extra shine
             if max_val > 30:
@@ -746,17 +750,25 @@ class LEDStripEmulator(arcade.Window):
                 highlight_r = min(255, int(r * highlight_factor))
                 highlight_g = min(255, int(g * highlight_factor))
                 highlight_b = min(255, int(b * highlight_factor))
-                arcade.draw_circle_filled(x, y, self.LED_SIZE / 3.5, (highlight_r, highlight_g, highlight_b))
+                highlight_size = self.LED_SIZE * 0.6
+                highlight_left = x - highlight_size / 2
+                highlight_bottom = y - highlight_size / 2
+                arcade.draw_lbwh_rectangle_filled(highlight_left, highlight_bottom, highlight_size, highlight_size, (highlight_r, highlight_g, highlight_b))
 
             # Draw very bright core for intense LEDs
             if max_val > 100:
                 core_r = min(255, r + 80)
                 core_g = min(255, g + 80)
                 core_b = min(255, b + 80)
-                arcade.draw_circle_filled(x, y, self.LED_SIZE / 6, (core_r, core_g, core_b))
+                core_size = self.LED_SIZE * 0.3
+                core_left = x - core_size / 2
+                core_bottom = y - core_size / 2
+                arcade.draw_lbwh_rectangle_filled(core_left, core_bottom, core_size, core_size, (core_r, core_g, core_b))
         else:
-            # Draw dim/off LED
-            arcade.draw_circle_filled(x, y, self.LED_SIZE / 2, (r, g, b))
+            # Draw dim/off LED rectangle
+            led_left = x - self.LED_SIZE / 2
+            led_bottom = y - self.LED_SIZE / 2
+            arcade.draw_lbwh_rectangle_filled(led_left, led_bottom, self.LED_SIZE, self.LED_SIZE, (r, g, b))
 
     def _draw_leds_to_buffer(self):
         """Draw only LEDs to the offscreen buffer (gets bloomed)."""
@@ -777,7 +789,7 @@ class LEDStripEmulator(arcade.Window):
             led_y = y - 25
             for i, (r, g, b) in enumerate(strip.colors[:strip.num_leds]):
                 led_x = self.STRIP_PADDING + self.LED_SPACING + i * (self.LED_SIZE + self.LED_SPACING) + self.LED_SIZE / 2
-                self._draw_led_circle(led_x, led_y, r, g, b, strip.brightness)
+                self._draw_led_rectangle(led_x, led_y, r, g, b, strip.brightness)
 
             # Move down for next strip
             y -= self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT + self.STRIP_PADDING + 20
