@@ -158,9 +158,13 @@ main() {
   echo ""
 
   # Start the emulator (this blocks until user closes it)
-  cd "$EMU_DIR"
-  source "$TESTS_VENV/bin/activate"
-  "$TESTS_VENV/bin/python" emulator.py --port "$EMU_PORT"
+  pushd tests_external
+  source ./venv/bin/activate
+  popd
+
+  pushd "$EMU_DIR"
+  which python
+  python emulator.py --port "$EMU_PORT"
 
   echo ""
   echo "Emulator closed."

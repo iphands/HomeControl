@@ -23,7 +23,7 @@ from fake_esp32 import LEDPacket
 try:
     import arcade
     import arcade.gl
-    from arcade.gui import UIManager, UISlider, UILabel, UIBoxLayout, UIAnchorLayout
+    from arcade.gui import UIManager, UISlider, UILabel, UIBoxLayout, UIAnchorLayout, UIHBoxLayout
 except ImportError:
     print("Error: arcade library not installed.")
     print("Install with: pip install arcade>=3.3.3")
@@ -245,12 +245,13 @@ class UDPListener:
 class LEDStripEmulator(arcade.Window):
     """Main GPU-accelerated LED strip emulator using Arcade."""
 
-    # Layout constants - matching original tkinter layout
-    LED_SIZE = 8  # tkinter uses 8
-    LED_SPACING = 2  # tkinter uses 2
+    # Layout constants - controls under strips layout
+    LED_SIZE = 4  # Smaller LEDs for more compact display
+    LED_SPACING = 2  # 2px spacing between LEDs
     STRIP_PADDING = 20
     HEADER_HEIGHT = 50
-    CONTROLS_WIDTH = 280
+    CONTROLS_HEIGHT = 200  # Height for controls panel underneath
+    SECTION_PADDING = 15  # Padding inside each strip section border
     STATUS_HEIGHT = 25
     
     # Colors matching tkinter version
@@ -259,6 +260,8 @@ class LEDStripEmulator(arcade.Window):
     TEXT_COLOR = arcade.color.WHITE
     STATUS_COLOR = (136, 255, 136)  # #88ff88
     LED_OUTLINE_COLOR = (51, 51, 51)  # #333333
+    SECTION_BORDER_COLOR = (80, 80, 80)  # #505050 - border around each strip section
+    SECTION_BG_COLOR = (35, 35, 35)  # #232323 - background inside strip sections
 
     def __init__(self, strips_config: List[dict], port: int = 4210):
         """
@@ -274,19 +277,26 @@ class LEDStripEmulator(arcade.Window):
         # Calculate window size based on strips
         max_leds = max(c['num_leds'] for c in strips_config)
         strip_width = (self.LED_SIZE + self.LED_SPACING) * max_leds + self.LED_SPACING
+        # Full width for strips with padding on both sides
         content_width = strip_width + self.STRIP_PADDING * 2
+        window_width = max(content_width, 800)  # Minimum width for controls
 
         num_strips = len(strips_config)
-        strip_height = self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT
-        content_height = (
-            self.HEADER_HEIGHT +
-            strip_height * num_strips +
-            self.STRIP_PADDING * (num_strips + 1) +
-            60  # Bottom padding
+        # Each strip section has border, label, LEDs, status, and padding
+        strip_section_height = (
+            self.SECTION_PADDING +  # Top padding inside border
+            20 +  # Label height
+            self.LED_SIZE + self.LED_SPACING * 2 +  # LEDs
+            self.STATUS_HEIGHT +  # Status text
+            self.SECTION_PADDING  # Bottom padding inside border
         )
-
-        window_width = content_width + self.CONTROLS_WIDTH
-        window_height = max(content_height, 400)  # Minimum height for controls
+        strips_total_height = (
+            self.HEADER_HEIGHT +
+            strip_section_height * num_strips +
+            self.STRIP_PADDING * (num_strips + 1)
+        )
+        # Total height includes strips and controls panel underneath
+        window_height = strips_total_height + self.CONTROLS_HEIGHT
 
         super().__init__(
             window_width,
@@ -405,12 +415,10 @@ class LEDStripEmulator(arcade.Window):
 
     def _create_text_objects(self):
         """Create Text objects for efficient rendering."""
-        content_width = self.width - self.CONTROLS_WIDTH
-
-        # Header text (matching tkinter style)
+        # Header text centered at top
         self.header_text = arcade.Text(
             "LED Strip Emulator",
-            content_width / 2,
+            self.width / 2,
             self.height - 30,
             self.TEXT_COLOR,
             font_size=16,
@@ -418,75 +426,84 @@ class LEDStripEmulator(arcade.Window):
             bold=True,
         )
 
-        # Port info (like tkinter version)
+        # Port info centered under header
         self.port_text = arcade.Text(
             f"Listening on UDP port {self.port}",
-            content_width / 2,
+            self.width / 2,
             self.height - 50,
             self.TEXT_COLOR,
             font_size=11,
             anchor_x="center",
         )
 
-        # FPS text
+        # FPS text at bottom left (above controls)
         self.fps_text_obj = arcade.Text(
             "",
             10,
-            10,
+            self.CONTROLS_HEIGHT - 30,
             (150, 150, 150),
             font_size=10,
         )
 
-        # Create text objects for each strip
+        # Create text objects for each strip within bordered sections
+        section_height = (
+            self.SECTION_PADDING +
+            20 +  # Label
+            self.LED_SIZE + self.LED_SPACING * 2 +  # LEDs
+            self.STATUS_HEIGHT +
+            self.SECTION_PADDING
+        )
         y = self.height - self.HEADER_HEIGHT - self.STRIP_PADDING
 
         for config in self.strips_config:
             strip_id = config['id']
             strip = self.strips[strip_id]
 
+            # Section starts at y, label is at top inside border
+            section_top = y
+            label_y = section_top - self.SECTION_PADDING - 12
+
             # Strip label (white text like tkinter)
-            label_y = y - 5
             self.strip_labels[strip_id] = arcade.Text(
                 f"Strip {strip_id} ({strip.num_leds} LEDs)",
-                self.STRIP_PADDING,
+                self.STRIP_PADDING + self.SECTION_PADDING + 5,
                 label_y,
                 self.TEXT_COLOR,
                 font_size=11,
             )
 
-            # Status text (green like tkinter #88ff88)
-            led_y = y - 25
-            status_y = led_y - 25
+            # Status text at bottom of section
+            status_y = section_top - section_height + self.SECTION_PADDING + 12
             self.strip_status[strip_id] = arcade.Text(
                 f"Strip {strip_id}: waiting for packets...",
-                self.STRIP_PADDING,
+                self.STRIP_PADDING + self.SECTION_PADDING + 5,
                 status_y,
                 self.STATUS_COLOR,
                 font_size=10,
             )
 
             # Move down for next strip
-            y -= self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT + self.STRIP_PADDING + 20
+            y -= section_height + self.STRIP_PADDING
 
     def _setup_ui(self):
-        """Set up the UI controls panel with dark theme styling."""
+        """Set up the UI controls panel with two columns underneath strips."""
         self.ui_manager = UIManager()
         self.ui_manager.enable()
 
         # Create dark theme slider style
         dark_slider_style = {
             "normal": UISlider.UIStyle(
-                bg=(60, 60, 60),  # Dark gray background
-                border=(100, 100, 100),  # Gray border
+                bg=(60, 60, 60),
+                border=(100, 100, 100),
                 border_width=1,
-                filled_track=(0, 150, 200),  # Cyan filled track
+                filled_track=(0, 150, 200),
                 filled_step=None,
-                unfilled_track=(40, 40, 40),  # Darker unfilled track
+                unfilled_track=(40, 40, 40),
                 unfilled_step=None,
             ),
             "hover": UISlider.UIStyle(
                 bg=(70, 70, 70),
-                border=(0, 180, 230),  # Brighter cyan border
+                border=(0, 180, 230),
                 border_width=2,
                 filled_track=(0, 180, 230),
                 filled_step=None,
@@ -513,8 +530,8 @@ class LEDStripEmulator(arcade.Window):
             ),
         }
 
-        # Create control panel on the right side
-        panel_layout = UIBoxLayout(vertical=True, space_between=10)
+        # Main controls container at the bottom
+        controls_layout = UIBoxLayout(vertical=True, space_between=5)
 
         # Title with white text
         title = UILabel(
@@ -523,31 +540,33 @@ class LEDStripEmulator(arcade.Window):
             bold=True,
             text_color=self.TEXT_COLOR,
         )
-        panel_layout.add(title)
+        controls_layout.add(title)
 
-        # Separator line
-        separator = UILabel(text="─" * 25, font_size=10, text_color=(100, 100, 100))
-        panel_layout.add(separator)
+        # Two-column layout for controls
+        columns_layout = UIHBoxLayout(space_between=40)
 
-        # Bloom Intensity slider with dark theme
+        # Left column - Effect sliders
+        left_column = UIBoxLayout(vertical=True, space_between=8)
+
+        # Bloom Intensity slider
         bloom_label = UILabel(
             text=f"Bloom Intensity: {self.bloom_intensity:.1f}",
             font_size=10,
             text_color=self.TEXT_COLOR,
         )
-        panel_layout.add(bloom_label)
+        left_column.add(bloom_label)
         bloom_slider = UISlider(
             value=self.bloom_intensity,
             min_value=0.0,
             max_value=3.0,
-            width=220,
+            width=300,
             style=dark_slider_style,
         )
         @bloom_slider.event("on_change")
         def on_bloom_change(event):
             self.bloom_intensity = bloom_slider.value
             bloom_label.text = f"Bloom Intensity: {self.bloom_intensity:.1f}"
-        panel_layout.add(bloom_slider)
+        left_column.add(bloom_slider)
 
         # Bloom Radius slider
         radius_label = UILabel(
@@ -555,19 +574,19 @@ class LEDStripEmulator(arcade.Window):
             font_size=10,
             text_color=self.TEXT_COLOR,
         )
-        panel_layout.add(radius_label)
+        left_column.add(radius_label)
         radius_slider = UISlider(
             value=self.bloom_radius,
             min_value=0.5,
             max_value=6.0,
-            width=220,
+            width=300,
             style=dark_slider_style,
         )
         @radius_slider.event("on_change")
         def on_radius_change(event):
             self.bloom_radius = radius_slider.value
             radius_label.text = f"Glow Radius: {self.bloom_radius:.1f}"
-        panel_layout.add(radius_slider)
+        left_column.add(radius_slider)
 
         # Bloom Threshold slider
         threshold_label = UILabel(
@@ -575,19 +594,24 @@ class LEDStripEmulator(arcade.Window):
             font_size=10,
             text_color=self.TEXT_COLOR,
         )
-        panel_layout.add(threshold_label)
+        left_column.add(threshold_label)
         threshold_slider = UISlider(
             value=self.bloom_threshold,
             min_value=0.0,
             max_value=0.5,
-            width=220,
+            width=300,
             style=dark_slider_style,
         )
         @threshold_slider.event("on_change")
         def on_threshold_change(event):
             self.bloom_threshold = threshold_slider.value
             threshold_label.text = f"Bloom Threshold: {self.bloom_threshold:.2f}"
-        panel_layout.add(threshold_slider)
+        left_column.add(threshold_slider)
+
+        columns_layout.add(left_column)
+
+        # Right column - More controls and info
+        right_column = UIBoxLayout(vertical=True, space_between=8)
 
         # Saturation slider
         sat_label = UILabel(
@@ -595,19 +619,19 @@ class LEDStripEmulator(arcade.Window):
             font_size=10,
             text_color=self.TEXT_COLOR,
         )
-        panel_layout.add(sat_label)
+        right_column.add(sat_label)
         sat_slider = UISlider(
             value=self.saturation,
             min_value=0.5,
             max_value=3.0,
-            width=220,
+            width=300,
             style=dark_slider_style,
         )
         @sat_slider.event("on_change")
         def on_sat_change(event):
             self.saturation = sat_slider.value
             sat_label.text = f"Saturation: {self.saturation:.1f}"
-        panel_layout.add(sat_slider)
+        right_column.add(sat_slider)
 
         # LED Glow Size slider
         glow_label = UILabel(
@@ -615,54 +639,56 @@ class LEDStripEmulator(arcade.Window):
             font_size=10,
             text_color=self.TEXT_COLOR,
         )
-        panel_layout.add(glow_label)
+        right_column.add(glow_label)
         glow_slider = UISlider(
             value=self.led_glow_size,
             min_value=0.0,
             max_value=5.0,
-            width=220,
+            width=300,
             style=dark_slider_style,
         )
         @glow_slider.event("on_change")
         def on_glow_change(event):
             self.led_glow_size = glow_slider.value
             glow_label.text = f"LED Glow: {self.led_glow_size:.1f}"
-        panel_layout.add(glow_slider)
+        right_column.add(glow_slider)
 
-        # Separator before info
-        separator2 = UILabel(text="─" * 25, font_size=10, text_color=(100, 100, 100))
-        panel_layout.add(separator2)
+        # Info section
+        info_layout = UIHBoxLayout(space_between=30)
 
-        # Info labels with matching colors
         port_label = UILabel(
             text=f"UDP Port: {self.port}",
             font_size=10,
-            text_color=self.STATUS_COLOR,  # Green like tkinter
+            text_color=self.STATUS_COLOR,
         )
-        panel_layout.add(port_label)
+        info_layout.add(port_label)
 
         self.pps_label = UILabel(
             text="Packets/sec: 0",
             font_size=10,
-            text_color=(100, 200, 255),  # Blue
+            text_color=(100, 200, 255),
         )
-        panel_layout.add(self.pps_label)
+        info_layout.add(self.pps_label)
 
-        latency_label = UILabel(
+        gpu_label = UILabel(
             text="GPU: Enabled",
             font_size=10,
-            text_color=(255, 200, 100),  # Orange
+            text_color=(255, 200, 100),
         )
-        panel_layout.add(latency_label)
+        info_layout.add(gpu_label)
 
-        # Anchor layout to position the panel
+        right_column.add(info_layout)
+
+        columns_layout.add(right_column)
+        controls_layout.add(columns_layout)
+
+        # Anchor layout to position controls at the bottom
         anchor = UIAnchorLayout()
         anchor.add(
-            panel_layout,
-            anchor_x="right",
-            anchor_y="top",
-            align_x=-20,
-            align_y=-20,
+            controls_layout,
+            anchor_x="center",
+            anchor_y="bottom",
+            align_y=20,
         )
 
         self.ui_manager.add(anchor)
@@ -771,28 +797,65 @@ class LEDStripEmulator(arcade.Window):
             arcade.draw_lbwh_rectangle_filled(led_left, led_bottom, self.LED_SIZE, self.LED_SIZE, (r, g, b))
 
     def _draw_leds_to_buffer(self):
-        """Draw only LEDs to the offscreen buffer (gets bloomed)."""
+        """Draw LEDs and strip section borders to the offscreen buffer."""
         self.scene_buffer.use()
         self.scene_buffer.clear()
         # Draw canvas background (matching tkinter #1a1a1a)
         arcade.draw_lbwh_rectangle_filled(0, 0, self.width, self.height, self.CANVAS_BG_COLOR)
 
+        # Calculate section dimensions
+        section_height = (
+            self.SECTION_PADDING +
+            20 +  # Label
+            self.LED_SIZE + self.LED_SPACING * 2 +  # LEDs
+            self.STATUS_HEIGHT +
+            self.SECTION_PADDING
+        )
+        section_width = self.width - self.STRIP_PADDING * 2
+
         # Calculate starting position
         y = self.height - self.HEADER_HEIGHT - self.STRIP_PADDING
 
-        # Draw each strip's LEDs only (no text)
+        # Draw each strip section with border
         for config in self.strips_config:
             strip_id = config['id']
             strip = self.strips[strip_id]
 
+            section_top = y
+            section_bottom = y - section_height
+
+            # Draw section background
+            arcade.draw_lbwh_rectangle_filled(
+                self.STRIP_PADDING,
+                section_bottom,
+                section_width,
+                section_height,
+                self.SECTION_BG_COLOR
+            )
+
+            # Draw section border (1px outline)
+            arcade.draw_lbwh_rectangle_outline(
+                self.STRIP_PADDING,
+                section_bottom,
+                section_width,
+                section_height,
+                self.SECTION_BORDER_COLOR,
+                1
+            )
+
+            # Calculate LED Y position (centered vertically in the LED area)
+            led_area_top = section_top - self.SECTION_PADDING - 20
+            led_area_bottom = section_bottom + self.SECTION_PADDING + self.STATUS_HEIGHT
+            led_y = (led_area_top + led_area_bottom) / 2
+
             # Draw LEDs
-            led_y = y - 25
+            led_start_x = self.STRIP_PADDING + self.SECTION_PADDING + self.LED_SPACING
             for i, (r, g, b) in enumerate(strip.colors[:strip.num_leds]):
-                led_x = self.STRIP_PADDING + self.LED_SPACING + i * (self.LED_SIZE + self.LED_SPACING) + self.LED_SIZE / 2
+                led_x = led_start_x + i * (self.LED_SIZE + self.LED_SPACING) + self.LED_SIZE / 2
                 self._draw_led_rectangle(led_x, led_y, r, g, b, strip.brightness)
 
             # Move down for next strip
-            y -= self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT + self.STRIP_PADDING + 20
+            y -= section_height + self.STRIP_PADDING
 
     def _draw_text_overlay(self):
         """Draw text and UI labels directly to screen (no bloom)."""
