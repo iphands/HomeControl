@@ -13,7 +13,7 @@ import os
 import socket
 import threading
 from dataclasses import dataclass, field
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Dict
 from array import array
 
 # Add parent directory to path to import from tests_external
@@ -126,7 +126,7 @@ void main() {
 }
 """
 
-# Saturation post-process shader - only affects LED area
+# Saturation post-process shader
 POSTPROCESS_FRAGMENT = """
 #version 330
 
@@ -322,8 +322,13 @@ class LEDStripEmulator(arcade.Window):
         self.ui_manager = None
         self.listener = None
 
+        # Text objects for efficient rendering
+        self.header_text: Optional[arcade.Text] = None
+        self.fps_text_obj: Optional[arcade.Text] = None
+        self.strip_labels: Dict[int, arcade.Text] = {}
+        self.strip_status: Dict[int, arcade.Text] = {}
+
         # FPS tracking
-        self.fps_text = ""
         self.frame_count = 0
         self.fps_timer = 0.0
         self.last_packet_time = 0.0
@@ -365,6 +370,9 @@ class LEDStripEmulator(arcade.Window):
             )
         ], mode=self.ctx.TRIANGLE_STRIP)
 
+        # Create text objects
+        self._create_text_objects()
+
         # Set up UI
         self._setup_ui()
 
@@ -387,6 +395,61 @@ class LEDStripEmulator(arcade.Window):
         self.blur_v_buffer = self.ctx.framebuffer(
             color_attachments=[self.ctx.texture((width, height), components=4)]
         )
+
+    def _create_text_objects(self):
+        """Create Text objects for efficient rendering."""
+        content_width = self.width - self.CONTROLS_WIDTH
+
+        # Header text
+        self.header_text = arcade.Text(
+            "LED Strip Emulator (GPU Accelerated)",
+            content_width / 2,
+            self.height - 30,
+            arcade.color.WHITE,
+            font_size=18,
+            anchor_x="center",
+            bold=True,
+        )
+
+        # FPS text
+        self.fps_text_obj = arcade.Text(
+            "",
+            10,
+            10,
+            (150, 150, 150),
+            font_size=10,
+        )
+
+        # Create text objects for each strip
+        y = self.height - self.HEADER_HEIGHT - self.STRIP_PADDING
+
+        for config in self.strips_config:
+            strip_id = config['id']
+            strip = self.strips[strip_id]
+
+            # Strip label
+            label_y = y - 5
+            self.strip_labels[strip_id] = arcade.Text(
+                f"Strip {strip_id} ({strip.num_leds} LEDs)",
+                self.STRIP_PADDING,
+                label_y,
+                arcade.color.WHITE,
+                font_size=11,
+            )
+
+            # Status text
+            led_y = y - 25
+            status_y = led_y - 25
+            self.strip_status[strip_id] = arcade.Text(
+                f"seq=0, brightness=255, packets=0",
+                self.STRIP_PADDING,
+                status_y,
+                (136, 255, 136),  # Green like original
+                font_size=10,
+            )
+
+            # Move down for next strip
+            y -= self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT + self.STRIP_PADDING + 20
 
     def _setup_ui(self):
         """Set up the UI controls panel."""
@@ -495,6 +558,12 @@ class LEDStripEmulator(arcade.Window):
                 strip.sequence = packet.sequence
                 strip.packet_count += 1
                 self.packet_counter += 1
+                
+                # Update status text
+                if strip_id in self.strip_status:
+                    self.strip_status[strip_id].text = (
+                        f"seq={strip.sequence}, brightness={strip.brightness}, packets={strip.packet_count}"
+                    )
 
     def on_update(self, delta_time: float):
         """Update game logic."""
@@ -504,7 +573,9 @@ class LEDStripEmulator(arcade.Window):
         self.frame_count += 1
         self.fps_timer += delta_time
         if self.fps_timer >= 1.0:
-            self.fps_text = f"FPS: {self.frame_count}"
+            fps_text = f"FPS: {self.frame_count}"
+            if self.fps_text_obj:
+                self.fps_text_obj.text = fps_text
             self.frame_count = 0
             self.fps_timer = 0.0
 
@@ -585,58 +656,21 @@ class LEDStripEmulator(arcade.Window):
 
     def _draw_text_overlay(self):
         """Draw text and UI labels directly to screen (no bloom)."""
-        content_width = self.width - self.CONTROLS_WIDTH
-        y = self.height - self.HEADER_HEIGHT - self.STRIP_PADDING
-
         # Draw header
-        arcade.draw_text(
-            "LED Strip Emulator (GPU Accelerated)",
-            content_width / 2,
-            self.height - 30,
-            arcade.color.WHITE,
-            font_size=18,
-            anchor_x="center",
-            bold=True,
-        )
+        if self.header_text:
+            self.header_text.draw()
 
-        # Draw each strip's text
-        for config in self.strips_config:
-            strip_id = config['id']
-            strip = self.strips[strip_id]
+        # Draw strip labels
+        for strip_id, text_obj in self.strip_labels.items():
+            text_obj.draw()
 
-            # Strip label
-            label_y = y - 5
-            arcade.draw_text(
-                f"Strip {strip_id} ({strip.num_leds} LEDs)",
-                self.STRIP_PADDING,
-                label_y,
-                arcade.color.WHITE,
-                font_size=11,
-            )
+        # Draw strip status
+        for strip_id, text_obj in self.strip_status.items():
+            text_obj.draw()
 
-            # Status text
-            led_y = y - 25
-            status_y = led_y - 25
-            status_color = (136, 255, 136)  # Green like original
-            arcade.draw_text(
-                f"seq={strip.sequence}, brightness={strip.brightness}, packets={strip.packet_count}",
-                self.STRIP_PADDING,
-                status_y,
-                status_color,
-                font_size=10,
-            )
-
-            # Move down for next strip
-            y -= self.LED_SIZE + self.LED_SPACING * 2 + self.STATUS_HEIGHT + self.STRIP_PADDING + 20
-
-        # Draw FPS and stats
-        arcade.draw_text(
-            self.fps_text,
-            10,
-            10,
-            (150, 150, 150),
-            font_size=10,
-        )
+        # Draw FPS
+        if self.fps_text_obj:
+            self.fps_text_obj.draw()
 
     def on_draw(self):
         """Render the screen with post-processing effects."""
@@ -686,6 +720,10 @@ class LEDStripEmulator(arcade.Window):
         # Recreate framebuffers at new size
         if self.scene_buffer:
             self._create_framebuffers()
+            
+        # Recreate text objects with new positions
+        if self.header_text:
+            self._create_text_objects()
 
     def on_key_press(self, key, modifiers):
         """Handle key presses."""
