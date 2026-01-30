@@ -16,7 +16,8 @@
       "Bash(lsof:*)",
       "Bash(chmod:*)",
       "Bash(bash -n:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "WebFetch(domain:api.arcade.academy)"
     ]
   }
 }
