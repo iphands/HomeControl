@@ -1,0 +1,12 @@
+[package]
+name = "led-strip-emulator"
+version = "0.1.0"
+edition = "2021"
+description = "GPU-accelerated LED strip emulator for HomeCtrl"
+
+[dependencies]
+macroquad = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
