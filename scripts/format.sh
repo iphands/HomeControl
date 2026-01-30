@@ -39,10 +39,7 @@ format_rust_emu() {
 # Format Python code
 format_python_api() {
   echo "Formatting Python code..."
-  check_python_venv || exit 1
-
   pushd "$APP_DIR" > /dev/null
-  source "$APP_VENV/bin/activate"
   black .
   popd > /dev/null
   echo "Python formatting complete"
