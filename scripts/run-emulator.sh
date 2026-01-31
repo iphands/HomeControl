@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# Run the LED Strip Emulator with the server
+# Run the LED Strip Emulator with the Rust server
 #
 # This script:
-# 1. Starts the server in debug mode (to allow strip configuration)
+# 1. Starts the Rust server in debug mode (to allow strip configuration)
 # 2. Configures strips to send to localhost where the emulator listens
-# 3. Starts the LED strip emulator GUI
+# 3. Starts the Rust LED strip emulator GUI
 # 4. Stops the server when the emulator exits
 #
 
@@ -16,16 +16,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Script-specific variables
-EMU_DIR="$TESTS_DIR/light_strip_emu"
+EMU_DIR="$PROJECT_ROOT/emu"
 SERVER_LOG="/tmp/led-controller-emulator-server.log"
 SERVER_PID=""
 EMU_PORT=4210
+IMPL="rust"
+IMPL_NAME="Rust"
+IMPL_DIR="$APP_RS_DIR"
+START_CMD="cargo run -- --debug"
 
 # Help text
 show_help() {
-  show_usage "$0" "<py|python|rs|rust>" \
-    "Run the LED Strip Emulator with the server." \
-    ""
+  echo "Run the LED Strip Emulator with the Rust server."
+  echo ""
+  echo "Usage: $(basename "$0")"
+  echo ""
+  echo "Options:"
+  echo "  --help       Show this help message"
+  echo ""
   exit 0
 }
 
@@ -50,12 +58,11 @@ configure_strips() {
     -d "{\"hostname\": \"127.0.0.1\", \"port\": $EMU_PORT}" > /dev/null
 
   echo "Strip configuration:"
-  curl -s "http://localhost:$SERVER_PORT/api/strips" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print('  Strip 1:', d['strips'][0]['hostname'], ':', d['strips'][0]['port'])
-print('  Strip 2:', d['strips'][1]['hostname'], ':', d['strips'][1]['port'])
-"
+  local response
+  response=$(curl -s "http://localhost:$SERVER_PORT/api/strips")
+  # Extract strip info using grep/sed (basic JSON parsing)
+  echo "  Strip 1:" $(echo "$response" | grep -o '"hostname":"[^"]*"' | head -1 | cut -d'"' -f4) ":" $(echo "$response" | grep -o '"port":[0-9]*' | head -1 | cut -d':' -f2)
+  echo "  Strip 2:" $(echo "$response" | grep -o '"hostname":"[^"]*"' | tail -1 | cut -d'"' -f4) ":" $(echo "$response" | grep -o '"port":[0-9]*' | tail -1 | cut -d':' -f2)
 }
 
 # Set mode to RainbowColor for both strips
@@ -73,15 +80,6 @@ set_rainbow_mode() {
   echo "Mode set to RainbowColor for both strips"
 }
 
-# Check for tkinter
-check_tkinter() {
-  if ! "$TESTS_VENV/bin/python" -c "import tkinter" 2>/dev/null; then
-    echo "WARNING: tkinter not found in venv. Emulator GUI will fail."
-    echo "The server will still start and you can use the web UI at http://localhost:$SERVER_PORT"
-    echo ""
-  fi
-}
-
 # Main function
 main() {
   # Set trap for cleanup
@@ -89,21 +87,6 @@ main() {
 
   # Check for help flag
   check_help "$@" && show_help
-
-  # Parse subcommand
-  if ! parse_impl_subcommand "$1" --debug; then
-    echo ""
-    show_usage "$0" "<py|python|rs|rust>" \
-      "Run the LED Strip Emulator with the server."
-    exit 1
-  fi
-
-  # Check virtual environments
-  if [[ "$IMPL" == "python" ]]; then
-    check_python_venv || exit 1
-  fi
-  check_tests_venv || exit 1
-  check_tkinter
 
   # Display startup info
   echo "========================================"
@@ -113,6 +96,7 @@ main() {
   echo ""
   echo "Project root: $PROJECT_ROOT"
   echo "Server dir:   $IMPL_DIR"
+  echo "Emulator dir: $EMU_DIR"
   echo "Emulator port: $EMU_PORT"
   echo "Server log:   $SERVER_LOG"
   echo ""
@@ -153,14 +137,13 @@ main() {
   echo ""
   echo "========================================"
   echo "Use the web UI at http://localhost:$SERVER_PORT to control LEDs"
-  echo "Close the emulator window or click 'Stop Emulator' to exit"
+  echo "Close the emulator window to exit"
   echo "========================================"
   echo ""
 
-  # Start the emulator (this blocks until user closes it)
+  # Start the Rust emulator (this blocks until user closes it)
   cd "$EMU_DIR"
-  source "$TESTS_VENV/bin/activate"
-  "$TESTS_VENV/bin/python" emulator.py --port "$EMU_PORT"
+  cargo run -- --port "$EMU_PORT"
 
   echo ""
   echo "Emulator closed."
