@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# Run the LED Strip Emulator with the server
+# Run the LED Strip Emulator with the Rust server only
 #
 # This script:
-# 1. Starts the server in debug mode (to allow strip configuration)
+# 1. Starts the Rust server in debug mode (to allow strip configuration)
 # 2. Configures strips to send to localhost where the emulator listens
 # 3. Starts the LED strip emulator GUI
 # 4. Stops the server when the emulator exits
@@ -16,15 +16,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Script-specific variables
-EMU_DIR="$TESTS_DIR/light_strip_emu"
 SERVER_LOG="/tmp/led-controller-emulator-server.log"
 SERVER_PID=""
 EMU_PORT=4210
 
 # Help text
 show_help() {
-  show_usage "$0" "<py|python|rs|rust>" \
-    "Run the LED Strip Emulator with the server." \
+  show_usage "$0" "<rs|rust>" \
+    "Run the LED Strip Emulator with the Rust server only." \
     ""
   exit 0
 }
@@ -58,28 +57,19 @@ print('  Strip 2:', d['strips'][1]['hostname'], ':', d['strips'][1]['port'])
 "
 }
 
-# Set mode to RainbowColor for both strips
+# Set mode to RainbowCycle for both strips
 set_rainbow_mode() {
-  echo "Setting RainbowColor mode for strips..."
+  echo "Setting RainbowCycle mode for strips..."
 
   curl -s -X POST "http://localhost:$SERVER_PORT/api/strips/1/mode" \
     -H "Content-Type: application/json" \
-    -d "{\"mode\": \"RainbowColor\"}" > /dev/null
+    -d "{\"mode\": \"RainbowCycle\"}" > /dev/null
 
   curl -s -X POST "http://localhost:$SERVER_PORT/api/strips/2/mode" \
     -H "Content-Type: application/json" \
-    -d "{\"mode\": \"RainbowColor\"}" > /dev/null
+    -d "{\"mode\": \"RainbowCycle\"}" > /dev/null
 
-  echo "Mode set to RainbowColor for both strips"
-}
-
-# Check for tkinter
-check_tkinter() {
-  if ! "$TESTS_VENV/bin/python" -c "import tkinter" 2>/dev/null; then
-    echo "WARNING: tkinter not found in venv. Emulator GUI will fail."
-    echo "The server will still start and you can use the web UI at http://localhost:$SERVER_PORT"
-    echo ""
-  fi
+  echo "Mode set to RainbowCycle for both strips"
 }
 
 # Main function
@@ -90,24 +80,24 @@ main() {
   # Check for help flag
   check_help "$@" && show_help
 
-  # Parse subcommand
+  # Parse subcommand - only support Rust for this version
   if ! parse_impl_subcommand "$1" --debug; then
     echo ""
-    show_usage "$0" "<py|python|rs|rust>" \
-      "Run the LED Strip Emulator with the server."
+    show_usage "$0" "<rs|rust>" \
+      "Run the LED Strip Emulator with the Rust server only."
     exit 1
   fi
 
-  # Check virtual environments
-  if [[ "$IMPL" == "python" ]]; then
-    check_python_venv || exit 1
+  # Only support Rust implementation
+  if [[ "$IMPL" != "rust" ]]; then
+    echo "Error: This script only supports Rust implementation"
+    echo "Usage: $0 rust"
+    exit 1
   fi
-  check_tests_venv || exit 1
-  check_tkinter
 
   # Display startup info
   echo "========================================"
-  echo "LED Strip Emulator"
+  echo "LED Strip Emulator (Rust only)"
   echo "Implementation: $IMPL_NAME"
   echo "========================================"
   echo ""
@@ -126,8 +116,8 @@ main() {
     exit 1
   fi
 
-  # Start the server in debug mode
-  echo "Starting $IMPL_NAME server in debug mode..."
+  # Start the Rust server in debug mode
+  echo "Starting Rust server in debug mode..."
   (
     cd "$IMPL_DIR"
     eval "$START_CMD"
@@ -147,20 +137,26 @@ main() {
   # Configure strips to point to emulator
   configure_strips
 
-  # Set RainbowColor mode
+  # Set RainbowCycle mode
   set_rainbow_mode
 
   echo ""
   echo "========================================"
   echo "Use the web UI at http://localhost:$SERVER_PORT to control LEDs"
-  echo "Close the emulator window or click 'Stop Emulator' to exit"
+  echo "Close the emulator window or click 'Stop Server' to exit"
   echo "========================================"
   echo ""
 
-  # Start the emulator (this blocks until user closes it)
-  cd "$EMU_DIR"
-  source "$TESTS_VENV/bin/activate"
-  "$TESTS_VENV/bin/python" emulator.py --port "$EMU_PORT"
+  # Build and run the Rust emulator
+  echo "Building and running Rust emulator..."
+  cd "$PROJECT_ROOT/emu"
+  if ! cargo build; then
+    echo "Error: Failed to build Rust emulator"
+    exit 1
+  fi
+
+  # Run the emulator
+  ./target/debug/homectrl-emulator
 
   echo ""
   echo "Emulator closed."
