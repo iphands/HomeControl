@@ -2,6 +2,7 @@
 /venv
 /venv_gentoo
 /venv_fedora
+/emu/target
 /tests_external/venv
 /tests_external/.pytest_cache
 /app_rs/target
