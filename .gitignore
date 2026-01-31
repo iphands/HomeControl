@@ -1,5 +1,7 @@
 /embedded/secret.h
 /venv
+/venv_gentoo
+/venv_fedora
 /tests_external/venv
 /tests_external/.pytest_cache
 /app_rs/target
