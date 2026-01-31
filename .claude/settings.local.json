@@ -17,7 +17,13 @@
       "Bash(chmod:*)",
       "Bash(bash -n:*)",
       "Bash(cargo check:*)",
-      "WebFetch(domain:api.arcade.academy)"
+      "WebFetch(domain:api.arcade.academy)",
+      "Bash(cargo build:*)",
+      "Bash(cargo update:*)",
+      "Bash(test:*)",
+      "Bash(/home/iphands/prog/homectrl/emu/target/release/led-emu:*)",
+      "Bash(./scripts/format.sh:*)",
+      "Bash(cargo fmt:*)"
     ]
   }
 }

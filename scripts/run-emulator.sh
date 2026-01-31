@@ -102,8 +102,8 @@ main() {
   if [[ "$IMPL" == "python" ]]; then
     check_python_venv || exit 1
   fi
-  check_tests_venv || exit 1
-  check_tkinter
+  # check_tests_venv || exit 1
+  # check_tkinter
 
   # Display startup info
   echo "========================================"
@@ -158,9 +158,11 @@ main() {
   echo ""
 
   # Start the emulator (this blocks until user closes it)
-  cd "$EMU_DIR"
-  source "$TESTS_VENV/bin/activate"
-  "$TESTS_VENV/bin/python" emulator.py --port "$EMU_PORT"
+  # cd "$EMU_DIR"
+  # source "$TESTS_VENV/bin/activate"
+  # "$TESTS_VENV/bin/python" emulator.py --port "$EMU_PORT"
+  cd emu
+  cargo run --release
 
   echo ""
   echo "Emulator closed."

@@ -1,0 +1,22 @@
+[package]
+name = "led-emu"
+version = "0.1.0"
+edition = "2021"
+description = "LED strip emulator for HomeCtrl"
+
+[dependencies]
+eframe = { version = "0.31", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "persistence",
+    "x11",
+    "wayland",
+] }
+egui = "0.31"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = true
