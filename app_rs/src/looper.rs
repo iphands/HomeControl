@@ -22,6 +22,9 @@ pub const DEFAULT_DELAY: f64 = 0.025;
 /// Delay for static modes (Solid, White, Off) in seconds.
 pub const STATIC_DELAY: f64 = 0.250;
 
+/// Minimum sleep per loop iteration, so a zero or tiny delay can't busy-spin the thread.
+const MIN_LOOP_SLEEP: Duration = Duration::from_millis(5);
+
 /// State for a single LED strip including its animation mode.
 pub struct StripState {
     /// The LED strip hardware interface.
@@ -483,9 +486,7 @@ impl Looper {
             Self::handle_iterations(&state)?;
 
             // Sleep until next update needed
-            if min_wait > Duration::ZERO {
-                thread::sleep(min_wait);
-            }
+            thread::sleep(min_wait.max(MIN_LOOP_SLEEP));
         }
     }
 

@@ -3,8 +3,11 @@
 //! This module provides UDP-based communication with ESP32 LED controllers.
 //! It handles packet construction, brightness control, and efficient LED updates.
 
-use std::net::UdpSocket;
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::time::{Duration, Instant};
+
+use tracing::{info, warn};
 
 use crate::error::{Error, Result};
 
@@ -16,6 +19,27 @@ const MSG_TYPE_LED_DATA: u8 = 1;
 
 /// Default UDP port for ESP32 LED controllers.
 const DEFAULT_UDP_PORT: u16 = 4210;
+
+/// How long a resolved strip address is reused before looking it up again.
+const DNS_CACHE_TTL: Duration = Duration::from_secs(300);
+
+/// How long to wait before retrying after a failed lookup.
+const DNS_RETRY_BACKOFF: Duration = Duration::from_secs(30);
+
+/// Cached result of resolving a strip's `hostname:port`.
+struct ResolvedAddr {
+    /// Hostname this entry was resolved for.
+    host: String,
+
+    /// Port this entry was resolved for.
+    port: u16,
+
+    /// Resolved address, or `None` if the hostname has never resolved.
+    addr: Option<SocketAddr>,
+
+    /// When the hostname should be looked up again.
+    next_lookup: Instant,
+}
 
 /// Represents a single LED strip connected via UDP.
 ///
@@ -52,6 +76,9 @@ pub struct Strip {
 
     /// UDP socket for communication.
     socket: UdpSocket,
+
+    /// Cached address for `udp_ip:udp_port`, so DNS is not queried per packet.
+    resolved: Option<ResolvedAddr>,
 }
 
 impl Strip {
@@ -92,6 +119,7 @@ impl Strip {
             buffer,
             seq: AtomicU8::new(0),
             socket,
+            resolved: None,
         })
     }
 
@@ -178,8 +206,71 @@ impl Strip {
     /// to prevent animation stuttering from network issues.
     pub fn send(&mut self) {
         let packet = self.packet();
-        // Non-blocking send - ignore errors
-        let _ = self.socket.send_to(&packet, (&self.udp_ip[..], self.udp_port));
+        if let Some(addr) = self.target_addr() {
+            // Non-blocking send - ignore errors
+            let _ = self.socket.send_to(&packet, addr);
+        }
+    }
+
+    /// Returns the address to send to, resolving `udp_ip` only when the cache
+    /// is empty, expired, or was resolved for a different host/port.
+    ///
+    /// Sending to a `(&str, u16)` directly runs a DNS lookup for every packet,
+    /// which at animation frame rates floods the DNS server.
+    fn target_addr(&mut self) -> Option<SocketAddr> {
+        let fresh = self
+            .resolved
+            .as_ref()
+            .is_some_and(|r| r.host == self.udp_ip && r.port == self.udp_port && Instant::now() < r.next_lookup);
+        if !fresh {
+            self.resolve();
+        }
+        self.resolved.as_ref().and_then(|r| r.addr)
+    }
+
+    /// Looks up `udp_ip:udp_port` and refreshes the cache.
+    ///
+    /// The socket is bound to an IPv4 address, so only IPv4 results are used.
+    /// On failure the last good address for the same host/port is kept and the
+    /// lookup is retried after [`DNS_RETRY_BACKOFF`].
+    fn resolve(&mut self) {
+        let same_target = self
+            .resolved
+            .as_ref()
+            .is_some_and(|r| r.host == self.udp_ip && r.port == self.udp_port);
+        let last_addr = if same_target {
+            self.resolved.as_ref().and_then(|r| r.addr)
+        } else {
+            None
+        };
+
+        let lookup = (self.udp_ip.as_str(), self.udp_port)
+            .to_socket_addrs()
+            .map(|mut addrs| addrs.find(SocketAddr::is_ipv4));
+
+        let (addr, retry_in) = match lookup {
+            Ok(Some(addr)) => {
+                if last_addr != Some(addr) {
+                    info!("Strip {} resolved {}:{} to {}", self.dev_id, self.udp_ip, self.udp_port, addr);
+                }
+                (Some(addr), DNS_CACHE_TTL)
+            }
+            Ok(None) => {
+                warn!("Strip {}: no IPv4 address for {}", self.dev_id, self.udp_ip);
+                (last_addr, DNS_RETRY_BACKOFF)
+            }
+            Err(e) => {
+                warn!("Strip {}: failed to resolve {}: {}", self.dev_id, self.udp_ip, e);
+                (last_addr, DNS_RETRY_BACKOFF)
+            }
+        };
+
+        self.resolved = Some(ResolvedAddr {
+            host: self.udp_ip.clone(),
+            port: self.udp_port,
+            addr,
+            next_lookup: Instant::now() + retry_in,
+        });
     }
 
     /// Fills the entire strip with a single color.
@@ -318,5 +409,28 @@ mod tests {
         assert_eq!(packet1[2], 255); // Brightness
         assert_eq!(packet1[3], 3); // LED count
         assert_eq!(packet1[4], 1); // Device ID
+    }
+
+    #[test]
+    fn test_target_addr_is_cached() {
+        let mut strip = Strip::new(1, "127.0.0.1", 3).unwrap();
+
+        let addr = strip.target_addr();
+        assert_eq!(addr, Some("127.0.0.1:4210".parse().unwrap()));
+        let next_lookup = strip.resolved.as_ref().unwrap().next_lookup;
+
+        // Second call is a cache hit: same address, no new lookup scheduled
+        assert_eq!(strip.target_addr(), addr);
+        assert_eq!(strip.resolved.as_ref().unwrap().next_lookup, next_lookup);
+    }
+
+    #[test]
+    fn test_target_addr_follows_reconfigure() {
+        let mut strip = Strip::new(1, "127.0.0.1", 3).unwrap();
+        strip.target_addr();
+
+        strip.udp_ip = "127.0.0.2".to_string();
+        strip.udp_port = 5000;
+        assert_eq!(strip.target_addr(), Some("127.0.0.2:5000".parse().unwrap()));
     }
 }
